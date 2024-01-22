@@ -1,7 +1,7 @@
-const {
+import {
   loadMessageList
-} = require('../controllers/messageController')
-const Router = require('koa-router');
+} from '../controllers/messageController';
+import Router from 'koa-router';
 
 const router = new Router({
   prefix: '/message'
@@ -9,4 +9,4 @@ const router = new Router({
 
 router.post('/user-list', loadMessageList);
 
-module.exports = router;
+export default router;

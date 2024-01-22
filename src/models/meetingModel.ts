@@ -1,11 +1,11 @@
-const mongoose = require("mongoose");
-const uuid = require("uuid");
-const { Schema: { Types } } = mongoose
+import mongoose from "mongoose";
+import { v4 } from "uuid";
 
+const { Schema: { Types } } = mongoose;
 const MeetingSchema = new mongoose.Schema({
   meetingId: {
     type: String,
-    default: uuid.v4(),
+    default: v4(),
   },
   creator: {
     type: Types.ObjectId, 
@@ -29,4 +29,4 @@ const MeetingSchema = new mongoose.Schema({
   },
 })
 
-module.exports = mongoose.model("meetings", MeetingSchema)
+export default mongoose.model("meetings", MeetingSchema)

@@ -1,4 +1,5 @@
-const logUtil = require('../utils/log-utils');
+import { Server } from "socket.io";
+import logUtil, { LogGenerateType } from '../utils/log-utils';
 const {
   saveUserMessage
 } = require('../controllers/messageController');
@@ -7,9 +8,9 @@ const {
 } = require("../controllers/userController");
 const { updateMeetingEndTime } = require('../controllers/meetingController');
 
-module.exports = (io) => {
+const socketRegister = (io: Server) => {
   const onlineUser = new Map(); // 在线用户
-  const logOnlineInfo = logUtil('online-user'); 
+  const logOnlineInfo = logUtil(LogGenerateType.ONLINE_USER); 
   // ----------- 会议 ----------------------
   const meetingMap = new Map(); // 房间映射
   const socketMap = new Map(); // 客户端socket实例
@@ -36,7 +37,7 @@ module.exports = (io) => {
     socket.on("meeting-invite", async (data) => {
       const { creator, meetingId, meetingName, userList } = data
       const creatorInfo = await socket_findOneUser(creator)
-      userList.forEach((userId) => {
+      userList.forEach((userId: string) => {
         const toSocketId = onlineUser.get(userId);
         toSocketId && socket.to(toSocketId).emit("meeting-invite", {
           ...data,
@@ -52,7 +53,7 @@ module.exports = (io) => {
     socket.on("create-meeting", ({ meetingId, meetingInfo, userInfo }) => {
       const { creator, userList, isJoinedMuted } = meetingInfo;
       const deviceStatus = { cameraEnable: false, audioEnable: !isJoinedMuted }
-      const inviteUserList = userList.map((user) => ({
+      const inviteUserList = userList.map((user: any) => ({
         ...user,
         ...deviceStatus,
         type: 'participant',
@@ -81,7 +82,7 @@ module.exports = (io) => {
     socket.on("join-meeting", ({ meetingId, userInfo }) => {
       if(meetingMap.get(meetingId)) {
         const { userList, socketId } = meetingMap.get(meetingId)
-        userList.forEach((user) => {
+        userList.forEach((user: any) => {
           if(user._id == userInfo._id) {
             user.status = 2;
             user.socketId = socket.id;
@@ -114,10 +115,10 @@ module.exports = (io) => {
       const meetingInfo = meetingMap.get(meetingId);
       if(meetingInfo) {
         const { userList } = meetingInfo;
-        userList.forEach((user) => {
+        userList.forEach((user: any) => {
           if(user._id === userId) {
             user.status = 3;
-            socketId = "";
+            user.socketId = "";
           }
         })
         socket.leave(meetingId);
@@ -130,7 +131,7 @@ module.exports = (io) => {
       const meetingInfo = meetingMap.get(meetingId);
       if(meetingInfo) {
         const { userList } = meetingInfo;
-        userList.forEach((user) => {
+        userList.forEach((user: any) => {
           if(user._id === userId) {
             const key = device === "audio" ? "audioEnable" : "cameraEnable";
             user[key] = enable;
@@ -158,3 +159,5 @@ module.exports = (io) => {
     });
   })
 }
+
+export default socketRegister;

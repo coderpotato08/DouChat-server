@@ -1,6 +1,6 @@
 const mongoose = require("mongoose");
-const UserContacts = require("../models/userContactsModel");
-const User = require("../models/usersModel");
+const UserContacts = require("../src/models/userContactsModel");
+const User = require("../src/models/usersModel");
 
 mongoose.connect("mongodb://localhost/chat_db_v2")
 .then(() => {
@@ -20,8 +20,6 @@ User.find().then(async (res) => {
     const result = res.filter((item) => item.username !== args[0]).map((item) => ({
       sender: currentUser._id,
       receiver: item._id,
-      recentMesage: "",
-      recentSendTime: curDate,
       createTime: curDate,
     }))
     await UserContacts.insertMany(result);

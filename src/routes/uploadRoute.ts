@@ -1,9 +1,9 @@
-const multer = require('koa-multer');
-const Router = require('koa-router');
-const path = require('path')
-const {
+import multer from 'koa-multer';
+import Router from 'koa-router';
+import path from 'node:path';
+import {
   uploadImage
-} = require('../controllers/uploadController')
+} from '../controllers/uploadController';
 
 let storage = multer.diskStorage({
   destination(req, file, cb) {
@@ -30,4 +30,4 @@ const router = new Router({
 
 router.post('/image', upload.single('image'), uploadImage);
 
-module.exports = router
+export default router

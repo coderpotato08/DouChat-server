@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
-const { Schema: { Types } } = mongoose
+import mongoose from "mongoose";
 
+const { Schema: { Types } } = mongoose
 const FriendSchema = new mongoose.Schema({
   userId: {
     type: Types.ObjectId,
@@ -23,4 +23,4 @@ const FriendSchema = new mongoose.Schema({
   }
 })
 
-module.exports = mongoose.model("friends", FriendSchema)
+export default mongoose.model("friends", FriendSchema)

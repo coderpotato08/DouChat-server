@@ -1,15 +1,17 @@
-const fs = require("fs");
-const path = require("path");
-const jwt = require("jsonwebtoken");
+import fs from "node:fs";
+import path from "node:path";
+import jwt from "jsonwebtoken";
 
 const privateCret = fs.readFileSync(path.join(__dirname, '../pem/rsa_private_key.pem'));
 const publicCret = fs.readFileSync(path.join(__dirname, '../pem/rsa_public_key.pem'));
-class JwtUtil {
-    constructor(data) {
+
+export default class JwtUtil {
+    public data: any
+    constructor(data: any) {
         this.data = data;
     }
 
-    generateToken() {
+    public generateToken() {
         const data = this.data;
         const created = Date.now();
         //私钥 加密
@@ -28,12 +30,12 @@ class JwtUtil {
     }
 
      // 校验token
-    verifyToken() {
+    public verifyToken() {
         const token = this.data;
         let res;
         try {
             //公钥 解密
-            const result = jwt.verify(token, publicCret, { algorithms: ['RS256'] }) || {};
+            const result: any = jwt.verify(token, publicCret, { algorithms: ['RS256'] }) || {};
             const { exp = 0 } = result;
             const current = Date.now();
             //验证时效性
@@ -46,5 +48,3 @@ class JwtUtil {
         return res;
     }
 }
-
-module.exports = JwtUtil

@@ -1,17 +1,17 @@
-const UserMessageModel = require('../models/userMessageModel');
-const { createRes } = require("../models/responseModel");
-const { $SuccessCode, $ErrorCode, $ErrorMessage } = require("../constant/errorData");
+import UserMessageModel from '../models/userMessageModel';
+import { createRes } from "../models/responseModel";
+import { $SuccessCode, $ErrorCode, $ErrorMessage } from "../constant/errorData";
+import { Context } from 'koa';
 
-const saveUserMessage = async (data) => {
+export const saveUserMessage = async (data: any) => {
   const { fromId, toId } = data;
   const result = await UserMessageModel
     .create(data);
   return result;
 }
 
-const loadMessageList = async (ctx) => {
-  const { request } = ctx
-  const { fromId, toId } = request.body;
+export const loadMessageList = async (ctx: Context) => {
+  const { fromId, toId } = (ctx.request.body as any);
   try {
     const messageList = await UserMessageModel
       .find({
@@ -19,12 +19,12 @@ const loadMessageList = async (ctx) => {
       })
       .populate({
         path: 'fromId',
-        module: "Users",
+        model: "Users",
         select: ["username", "avatarImage"],
       })
       .populate({
         path: 'toId',
-        module: "Users",
+        model: "Users",
         select: ["username", "avatarImage"],
       })
       .sort({ time: 1 })
@@ -34,9 +34,4 @@ const loadMessageList = async (ctx) => {
   } catch(err) {
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
   }  
-}
-
-module.exports = {
-  saveUserMessage,
-  loadMessageList,
 }

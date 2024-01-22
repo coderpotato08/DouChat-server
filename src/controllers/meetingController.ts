@@ -1,16 +1,16 @@
-const MeetingModel = require("../models/meetingModel");
-const uuid = require('uuid');
-const { createRes } = require("../models/responseModel");
-const { $SuccessCode, $ErrorCode, $ErrorMessage } = require("../constant/errorData");
+import MeetingModel from "../models/meetingModel";
+import { v4 } from 'uuid';
+import { createRes } from "../models/responseModel";
+import { $SuccessCode, $ErrorCode, $ErrorMessage } from "../constant/errorData";
+import { Context } from "koa";
 
-const createMeeting = async (ctx) => {
+export const createMeeting = async (ctx: Context) => {
   try {
-    const { request } = ctx;
-    const { creator, meetingName, userList, isJoinedMuted, createTime } = request.body;
+    const { creator, meetingName, userList, isJoinedMuted, createTime } = (ctx.request.body as any);
     if(!userList || userList.length <= 0) {
       ctx.body = createRes($ErrorCode.USER_LIST_EMPTY, null, $ErrorMessage.USER_LIST_EMPTY)
     }
-    const meetingId = uuid.v4();
+    const meetingId = v4();
     const createMeetingInfo = await MeetingModel.create({
       meetingId,
       creator,
@@ -28,20 +28,19 @@ const createMeeting = async (ctx) => {
   }
 }
 
-const loadMeetingInfo = async (ctx) => {
+export const loadMeetingInfo = async (ctx: Context) => {
   try {
-    const { request } = ctx;
-    const { meetingId } = request.body;
+    const { meetingId } = (ctx.request.body as any);
     const meetingInfo = await MeetingModel
       .findOne({ meetingId })
       .populate({
         path: 'creator',
-        module: "Users",
+        model: "Users",
         select: ["username", "nickname", "_id", "avatarImage"],
       })
       .populate({
         path: 'userList',
-        module: "Users",
+        model: "Users",
         select: ["username", "nickname", "_id", "avatarImage"],
       });
     ctx.body = createRes($SuccessCode, meetingInfo || null, "")
@@ -50,13 +49,7 @@ const loadMeetingInfo = async (ctx) => {
   }
 }
 
-const updateMeetingEndTime = async (meetingId) => {
+export const updateMeetingEndTime = async (meetingId: string) => {
   const res = await MeetingModel.updateOne({meetingId}, {endTime: new Date()});
   return !!res.modifiedCount
-}
-
-module.exports = {
-  createMeeting,
-  loadMeetingInfo,
-  updateMeetingEndTime
 }

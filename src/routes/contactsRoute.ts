@@ -1,7 +1,7 @@
-const {
+import {
   loadUserContacts
-} = require('../controllers/contactsController')
-const Router = require('koa-router');
+} from '../controllers/contactsController'
+import Router from 'koa-router';
 
 const router = new Router({
   prefix: '/contacts'
@@ -9,4 +9,4 @@ const router = new Router({
 
 router.post('/user-contact-list', loadUserContacts);
 
-module.exports = router;
+export default router;

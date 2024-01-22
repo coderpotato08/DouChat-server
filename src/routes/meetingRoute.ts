@@ -1,8 +1,8 @@
-const {
+import {
   createMeeting,
   loadMeetingInfo,
-} = require("../controllers/meetingController")
-const Router = require("koa-router");
+} from "../controllers/meetingController"
+import Router from "koa-router";
 
 const router = new Router({
   prefix: '/meeting'
@@ -11,4 +11,4 @@ const router = new Router({
 router.post('/create', createMeeting);
 router.post('/getInfo', loadMeetingInfo);
 
-module.exports = router;
+export default router;

@@ -1,8 +1,8 @@
-const mongoose = require('mongoose');
+import mongoose from 'mongoose';
 
-module.exports.initMongoose = () => {
+const initMongoose = () => {
   new Promise((resolve, reject) => {
-    mongoose.connect(process.env.MONGOOSE_URL)
+    mongoose.connect(process.env.MONGOOSE_URL!)
     .then(() => {
         console.log("mongodb connect success")
         resolve({ status: "success"});
@@ -14,3 +14,5 @@ module.exports.initMongoose = () => {
     })
   })
 }
+
+export default initMongoose;

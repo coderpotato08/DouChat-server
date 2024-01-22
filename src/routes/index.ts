@@ -1,10 +1,11 @@
-const userRouter = require('./userRoute');
-const contactsRouter = require('./contactsRoute');
-const messageRouter = require('./messageRoute');
-const uploadRouter = require('./uploadRoute');
-const meetingRouter = require('./meetingRoute');
+import Koa from 'koa';
+import userRouter from './userRoute';
+import contactsRouter from './contactsRoute';
+import messageRouter from './messageRoute';
+import uploadRouter from './uploadRoute';
+import meetingRouter from './meetingRoute';
 
-module.exports = (app) => {
+export default (app: Koa) => {
   app.use(userRouter.routes()).use(userRouter.allowedMethods());
   app.use(contactsRouter.routes()).use(contactsRouter.allowedMethods());
   app.use(messageRouter.routes()).use(messageRouter.allowedMethods());
