@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.ts",
   "scripts": {
-    "server": "nodemon ./src/index.js"
+    "server": "npx ts-node-dev --respawn ./src/index.ts"
   },
   "author": "",
   "license": "ISC",

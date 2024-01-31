@@ -1,25 +1,26 @@
 import { Schema, model} from "mongoose";
 
 export interface UserContactsDocument{
-  sender: Schema.Types.ObjectId,
-  receiver: Schema.Types.ObjectId,
+  contactId: string
+  users: [Schema.Types.ObjectId, Schema.Types.ObjectId]
   createTime?: Date,
+  unreadNum: number
 }
 // 消息栏-聊天好友表
 const userContactSchema = new Schema<UserContactsDocument>({
-  sender: { // 发送方
+  contactId: {
+    type: String,
+    required: true,
+    unique: true,
+  },
+  users: [{
     type: Schema.Types.ObjectId,
     require: true,
-    ref: 'Users'
-  },
-  receiver: { // 接收方
-    type: Schema.Types.ObjectId,
-    require: true,
-    ref: 'Users'
-  },
+    ref: 'Users',
+  }],
   createTime: {
     type: Date
-  }, // 创建时间
+  }
 })
 
 export default model<UserContactsDocument>("UserContacts", userContactSchema)

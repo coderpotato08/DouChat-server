@@ -1,12 +1,24 @@
-import UserMessageModel from '../models/userMessageModel';
+import UserMessageModel, { UserMessageDocument } from '../models/userMessageModel';
 import { createRes } from "../models/responseModel";
 import { $SuccessCode, $ErrorCode, $ErrorMessage } from "../constant/errorData";
 import { Context } from 'koa';
 
 export const saveUserMessage = async (data: any) => {
   const { fromId, toId } = data;
-  const result = await UserMessageModel
+  const newMessage = await UserMessageModel
     .create(data);
+  const result = await UserMessageModel
+    .findOne({_id: newMessage._id})
+    .populate({
+      path: 'fromId',
+      model: "Users",
+      select: ["username", "avatarImage"],
+    })
+    .populate({
+      path: 'toId',
+      model: "Users",
+      select: ["username", "avatarImage"],
+    })
   return result;
 }
 

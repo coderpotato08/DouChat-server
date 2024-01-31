@@ -7,6 +7,6 @@ const router = new Router({
   prefix: '/message'
 });
 
-router.post('/user-list', loadMessageList);
+router.post('/userMessageList', loadMessageList);
 
 export default router;

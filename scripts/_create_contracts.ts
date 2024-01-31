@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
-const UserContacts = require("../src/models/userContactsModel");
-const User = require("../src/models/usersModel");
+import mongoose from "mongoose";
+import UserContacts from "../src/models/userContactsModel";
+import User from "../src/models/usersModel";
 
 mongoose.connect("mongodb://localhost/chat_db_v2")
 .then(() => {
@@ -17,12 +17,12 @@ User.find().then(async (res) => {
     const currentUser = res.filter((item) => item.username == args[0])[0];
     const curDate = new Date();
     await UserContacts.deleteMany({sender: currentUser._id})
-    const result = res.filter((item) => item.username !== args[0]).map((item) => ({
-      sender: currentUser._id,
-      receiver: item._id,
+    const params = res.filter((item) => item.username !== args[0]).map((item) => ({
+      contactId: [currentUser._id, item._id].join("_"),
+      users: [currentUser._id, item._id],
       createTime: curDate,
     }))
-    await UserContacts.insertMany(result);
+    await UserContacts.insertMany(params);
     mongoose.connection.close(function() {  
       console.log('success!!! mongoose connection closed');  
     }); 

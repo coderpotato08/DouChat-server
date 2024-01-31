@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import { Schema, model } from "mongoose";
 
 export interface UserMessageDocument {
@@ -26,6 +27,7 @@ const UserMessage = new Schema<UserMessageDocument>({
   },
   time: {
     type: Date,
+    getter: (v: Date) => dayjs(v).format("YYYY-MM-DD HH:mm:ss")
   },
   state: {  // 已读未读 未读0 已读1
     type: Number,

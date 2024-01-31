@@ -3,10 +3,13 @@ import { Schema, model } from "mongoose";
 export interface UserDocument {
     username: string,
     nickname: string,
-    email: string,
     password: string,
     avatarImage: string,
-    token: string,
+    gender: "man" | "girl",
+    phoneNumber?: string,
+    sign?: string,
+    email?: string,
+    token?: string,
 }
 // 用户表
 const userSchema = new Schema<UserDocument>({
@@ -20,6 +23,10 @@ const userSchema = new Schema<UserDocument>({
     nickname: {
         type: String,
         max: 30,
+    },
+    gender: {
+        type: String,
+        enum: ["man", "girl"],
     },
     email: {
         type: String,
@@ -35,6 +42,12 @@ const userSchema = new Schema<UserDocument>({
     avatarImage: {
         type: String,
         default: ""
+    },
+    phoneNumber: {
+        type: String,
+    },
+    sign: {
+        type: String,
     },
     token: {
         type: String,

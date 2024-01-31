@@ -1,12 +1,18 @@
 import { Server } from "socket.io";
 import logUtil, { LogGenerateType } from '../utils/log-utils';
-const {
+import {
   saveUserMessage
-} = require('../controllers/messageController');
-const {
+} from '../controllers/messageController';
+import {
   socket_findOneUser,
-} = require("../controllers/userController");
-const { updateMeetingEndTime } = require('../controllers/meetingController');
+} from "../controllers/userController";
+import { 
+  updateMeetingEndTime 
+}from '../controllers/meetingController';
+import { 
+  addContactUnread, cleanContactUnread 
+} from "../controllers/contactsController";
+import { EventType } from "../constant/socketTypes";
 
 const socketRegister = (io: Server) => {
   const onlineUser = new Map(); // 在线用户
@@ -18,7 +24,7 @@ const socketRegister = (io: Server) => {
   io.on("connection", (socket) => {
 
      // ----------- 聊天 ----------------------
-    socket.on("add-user", (userInfo) => {
+    socket.on(EventType.ADD_USER, (userInfo) => {
       const { username, _id } = userInfo
       if (!onlineUser.has(_id)) {
         logOnlineInfo(userInfo, onlineUser.size+1)
@@ -26,31 +32,37 @@ const socketRegister = (io: Server) => {
       onlineUser.set(_id, socket.id)
     });
   
-    socket.on("send-message", async (data) => {
-      const msgData = await saveUserMessage(data);
-      const toId = msgData.toId.toString();
-      const toSocketId = onlineUser.get(toId);
-      socket.to(toSocketId).emit("receive-message", msgData);
+    socket.on(EventType.SEND_MESSAGE, async (data) => {
+      const msgData: any = await saveUserMessage(data);
+      const { fromId, toId } = msgData;
+      const contactId = [toId._id, fromId._id].sort().join("_");
+      const toSocketId = onlineUser.get(toId._id.toString());
+      await addContactUnread(contactId);
+      socket.to(toSocketId).emit(EventType.RECEIVE_MESSAGE, msgData);
+    })
+
+    socket.on(EventType.READ_MESSAGE, async ({ fromId, toId }) => {
+      await cleanContactUnread(fromId, toId);
     })
 
     // ----------- 会议 ----------------------
-    socket.on("meeting-invite", async (data) => {
+    socket.on(EventType.INVITE_MEETING, async (data) => {
       const { creator, meetingId, meetingName, userList } = data
       const creatorInfo = await socket_findOneUser(creator)
       userList.forEach((userId: string) => {
         const toSocketId = onlineUser.get(userId);
-        toSocketId && socket.to(toSocketId).emit("meeting-invite", {
+        toSocketId && socket.to(toSocketId).emit(EventType.INVITE_MEETING, {
           ...data,
           creator: creatorInfo
         });
       });
     })
 
-    socket.on("reject-invite", ({ meetingId, userId }) => {  // 通知其他成员，该用户已拒听
-      socket.in(meetingId).emit("reject-invite", {userId});
+    socket.on(EventType.REJECT_INVITE, ({ meetingId, userId }) => {  // 通知其他成员，该用户已拒听
+      socket.in(meetingId).emit(EventType.REJECT_INVITE, {userId});
     })
 
-    socket.on("create-meeting", ({ meetingId, meetingInfo, userInfo }) => {
+    socket.on(EventType.CREATE_MEETING, ({ meetingId, meetingInfo, userInfo }) => {
       const { creator, userList, isJoinedMuted } = meetingInfo;
       const deviceStatus = { cameraEnable: false, audioEnable: !isJoinedMuted }
       const inviteUserList = userList.map((user: any) => ({
@@ -75,11 +87,11 @@ const socketRegister = (io: Server) => {
       }
       socketMap.set(userInfo._id, socket);
       socket.join(meetingId); // 入会
-      socket.emit('joined-meeting', params); // 通知本人入会成功
-      socket.to(meetingId).emit('joined-meeting', params); // 通知其他成员入会成功
+      socket.emit(EventType.JOINED_MEETING, params); // 通知本人入会成功
+      socket.to(meetingId).emit(EventType.JOINED_MEETING, params); // 通知其他成员入会成功
     });
 
-    socket.on("join-meeting", ({ meetingId, userInfo }) => {
+    socket.on(EventType.JOIN_MEETING, ({ meetingId, userInfo }) => {
       if(meetingMap.get(meetingId)) {
         const { userList, socketId } = meetingMap.get(meetingId)
         userList.forEach((user: any) => {
@@ -95,23 +107,23 @@ const socketRegister = (io: Server) => {
         }
         socketMap.set(userInfo._id, socket);
         socket.join(meetingId); // 入会
-        socket.emit('joined-meeting', params) // 通知本人入会成功
-        socket.to(meetingId).emit('joined-meeting', params); // 通知其他成员入会成功
+        socket.emit(EventType.JOINED_MEETING, params) // 通知本人入会成功
+        socket.to(meetingId).emit(EventType.JOINED_MEETING, params); // 通知其他成员入会成功
       }
     });
 
-    socket.on('end-meeting', async (meetingId) => { // 结束会议
+    socket.on(EventType.END_MEETING, async (meetingId) => { // 结束会议
       if(meetingMap.get(meetingId)) {
         const success = await updateMeetingEndTime(meetingId) // 更新会议结束时间
         if (success) {
           meetingMap.delete(meetingId);
           socket.leave(meetingId);
-          socket.to(meetingId).emit('end-meeting', meetingId);
+          socket.to(meetingId).emit(EventType.END_MEETING, meetingId);
         }
       }
     }) 
 
-    socket.on('leave-meeting', ({ meetingId, userId }) => {
+    socket.on(EventType.LEAVE_MEETING, ({ meetingId, userId }) => {
       const meetingInfo = meetingMap.get(meetingId);
       if(meetingInfo) {
         const { userList } = meetingInfo;
@@ -122,11 +134,11 @@ const socketRegister = (io: Server) => {
           }
         })
         socket.leave(meetingId);
-        socket.to(meetingId).emit('leave-meeting', { users: userList })
+        socket.to(meetingId).emit(EventType.LEAVE_MEETING, { users: userList })
       }
     })
 
-    socket.on('device-status-change', (data) => {
+    socket.on(EventType.DEVICE_STATUS_CHANGE, (data) => {
       const { meetingId, userId, device, enable } = data;
       const meetingInfo = meetingMap.get(meetingId);
       if(meetingInfo) {
@@ -137,25 +149,25 @@ const socketRegister = (io: Server) => {
             user[key] = enable;
           }
         })
-        socket.to(meetingId).emit('device-status-change', data)
+        socket.to(meetingId).emit(EventType.DEVICE_STATUS_CHANGE, data)
       }
     })
 
-    socket.on('send-offer', (data) => {
+    socket.on(EventType.SEND_OFFER, (data) => {
       const { meetingId, peerId } = data
       console.log(`[offer]peerId ${peerId}`)
-      socket.to(meetingId).emit('send-offer', data);
+      socket.to(meetingId).emit(EventType.SEND_OFFER, data);
     });
 
-    socket.on('answer-offer', (data) => {
+    socket.on(EventType.ANSWER_OFFER, (data) => {
       const { meetingId, peerId } = data
       console.log(`[answer]peerId ${peerId}`)
-      socket.to(meetingId).emit('answer-offer', data);
+      socket.to(meetingId).emit(EventType.ANSWER_OFFER, data);
     });
 
-    socket.on('ice_candidate', (data)=>{
+    socket.on(EventType.ICE_CANDIDATE, (data)=>{
       const { meetingId } = data;
-      socket.to(meetingId).emit('ice_candidate', data);
+      socket.to(meetingId).emit(EventType.ICE_CANDIDATE, data);
     });
   })
 }

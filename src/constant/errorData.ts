@@ -23,6 +23,9 @@ export enum $ErrorCode {
     SIGNAL_SERVER_ERROR,
     // meeting_error_code
     USER_LIST_EMPTY,
+    // friend_error_code
+    FRIENDSHIP_NOT_EXIST,
+    GROUP_NUMBER_EXIST,
 }
 export enum $ErrorMessage {
     // register_error_text
@@ -38,4 +41,5 @@ export enum $ErrorMessage {
     ADD_MESSAGE_ERROR = "发送消息失败",
     // meeting_error_text
     USER_LIST_EMPTY = "会议邀请用户不能为空",
+    GROUP_NUMBER_EXIST = "该群号已被占用"
 }
