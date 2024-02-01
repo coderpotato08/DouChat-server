@@ -1,7 +1,7 @@
 import { Context } from "koa";
 import GroupModel from "../models/groupsModel";
 import GroupUserModel from "../models/groupUserModel";
-import { CreateGroupParams, LoadGroupListParams, LoadGroupUsersParams } from "../constant/apiTypes";
+import { CreateGroupParams, DisbandGroupParams, LoadGroupListParams, LoadGroupUsersParams, QuitGroupParams } from "../constant/apiTypes";
 import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 
@@ -92,6 +92,29 @@ export const loadGroupUsers = async (ctx: Context) => {
         select: ["nickname", "username", "avatarImage"],
       })
     ctx.body = createRes($SuccessCode, userList.map((item) => item.userId), "")
+  } catch (err) {
+    console.log(err)
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const quitGroup = async (ctx: Context) => {
+  const { groupId, userId } = (ctx.request.body as QuitGroupParams);
+  try {
+    await GroupUserModel.deleteOne({ groupId, userId });
+    ctx.body = createRes($SuccessCode, {status: "success"}, "")
+  } catch (err) {
+    console.log(err)
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const disbandGroup = async (ctx: Context) => {
+  const { groupId } = (ctx.request.body as DisbandGroupParams);
+  try {
+    await GroupModel.deleteOne({ groupId });
+    await GroupUserModel.deleteMany({ groupId });
+    ctx.body = createRes($SuccessCode, {status: "success"}, "")
   } catch (err) {
     console.log(err)
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)

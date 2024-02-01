@@ -40,3 +40,12 @@ export interface CreateGroupParams {
 export interface LoadGroupUsersParams {
   groupId: string
 }
+export interface QuitGroupParams extends LoadGroupUsersParams {
+  userId: string
+}
+export interface DisbandGroupParams extends LoadGroupUsersParams {}
+
+export interface DeleteFriendParams {
+  userId: string,
+  friendId: string,
+}

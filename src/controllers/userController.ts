@@ -1,10 +1,13 @@
-import UserModel, { UserDocument } from "../models/usersModel";
+import UserModel from "../models/usersModel";
 import FriendsModel from "../models/friendsModel";
+import UserContactsModel from "../models/userContactsModel";
+import UserMessageModel from "../models/userMessageModel";
 import Jwt from "../jwt/Jwt";
 import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import { Context } from "koa";
 import { 
+  DeleteFriendParams,
   FriendNotificationsParams,
   FriendStatusChangeParams,
   LoadUserInfoParams,
@@ -226,6 +229,27 @@ export const changetFriendStatus = async (ctx: Context) => {  // 同意/拒绝�
       }
     }
   } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const deleteFriend = async (ctx: Context) => {
+  const { userId, friendId } = (ctx.request.body as DeleteFriendParams);
+  try {
+    await FriendsModel.deleteOne({$or: [  // 删除好友关系
+      {userId, friendId},
+      {userId: friendId, friendId: userId}
+    ]});
+    await UserContactsModel.deleteMany({  // 删除好友关系
+      users: {$all: [userId, friendId]}
+    })
+    await UserMessageModel.deleteMany({$or: [ // 删除聊天记录
+      {fromId: userId, toId: friendId},
+      {fromId: friendId, toId: userId}
+    ]})
+    ctx.body = createRes($SuccessCode, { status: "success" }, "")
+  } catch (err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
   }
