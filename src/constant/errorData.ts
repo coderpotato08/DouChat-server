@@ -17,6 +17,7 @@ export enum $ErrorCode {
     PASSWORD_INVALID_ERROR,
     TOKEN_ERROR,
     TOKEN_MISSING_ERROR,
+    REGISTER_FAIL,
     // message_error_code
     ADD_MESSAGE_ERROR,
     // server_error_code

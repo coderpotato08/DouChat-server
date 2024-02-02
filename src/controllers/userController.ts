@@ -56,8 +56,23 @@ export const login = async (ctx: Context) => {
 
 export const register = async (ctx: Context) => { // 注册
   const registerParams = (ctx.request.body as RegisterParams);
-  const {} = registerParams;
+  const { username, email, phoneNumber } = registerParams;
   try {
+    const sameUsernameUser = await UserModel.findOne({username});
+    if(sameUsernameUser) {
+      ctx.body = createRes($ErrorCode.REGISTER_FAIL, null, "该用户名已被使用，请重新填写！");
+      return;
+    }
+    const sameEmailUser = await UserModel.findOne({email});
+    if(sameEmailUser) {
+      ctx.body = createRes($ErrorCode.REGISTER_FAIL, null, "该邮箱已被使用，请重新填写！");
+      return;
+    }
+    const samePhoneUser = await UserModel.findOne({phoneNumber});
+    if(samePhoneUser) {
+      ctx.body = createRes($ErrorCode.REGISTER_FAIL, null, "该手机号已被使用，请重新填写！");
+      return;
+    }
     const userInfo = UserModel.create(registerParams);
     ctx.body = createRes($SuccessCode, {
       status: "success"

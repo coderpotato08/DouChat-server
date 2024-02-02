@@ -43,6 +43,7 @@ export interface LoadGroupUsersParams {
 export interface QuitGroupParams extends LoadGroupUsersParams {
   userId: string
 }
+export interface CreateGroupContactParams extends QuitGroupParams {}
 export interface DisbandGroupParams extends LoadGroupUsersParams {}
 
 export interface DeleteFriendParams {

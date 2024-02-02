@@ -1,8 +1,10 @@
 import { Context } from 'koa';
+import { Types } from 'mongoose';
 import { createRes } from '../models/responseModel';
 import UserContactsModel from '../models/userContactsModel';
 import UserMessageModel from '../models/userMessageModel';
-import { LoadContactListParams, LoadContactParams } from '../constant/apiTypes';
+import GroupContactsModel from '../models/groupContactsModel';
+import { CreateGroupContactParams, LoadContactListParams, LoadContactParams } from '../constant/apiTypes';
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from '../constant/errorData';
 
 // 查询聊天栏列表
@@ -33,11 +35,10 @@ export const loadUserContactList = async (ctx: Context) => {
     contact.recentMessage = recentMessageList[0];
     return contact
   }));
-  ctx.body = createRes($SuccessCode, {
-    contactList: newContactList || []
-  }, "")
+  ctx.body = createRes($SuccessCode, newContactList || [], "")
 }
 
+// 加载单个聊天栏
 export const loadUserContact = async (ctx: Context) => {
   const { contactId } = (ctx.request.body as LoadContactParams);
   try {
@@ -61,6 +62,55 @@ export const loadUserContact = async (ctx: Context) => {
       ctx.body = createRes($SuccessCode, newContact, "")
     }
   } catch (error) {
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+// 新建用户 => 群聊栏映射
+export const createGroupContact = async (ctx: Context) => {
+  const { userId, groupId } = (ctx.request.body as CreateGroupContactParams);
+  const existContact = await GroupContactsModel.findOne({userId, groupId});
+  try {
+    if(existContact) {
+      ctx.body = createRes($SuccessCode, {
+        groupId,
+        status: "success",
+      }, "")
+    } else {
+      const groupContact = await GroupContactsModel.create({
+        userId,
+        groupId,
+      });
+      ctx.body = createRes($SuccessCode, {
+        groupId: groupContact._id,
+        status: "success",
+      }, "")
+    }
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+// 查询群聊天栏列表
+export const loadGroupContactList = async (ctx: Context) => {
+  const { userId } = (ctx.request.body as LoadContactListParams);
+  try {
+    const groupContactList = await GroupContactsModel
+      .aggregate([
+        {$match: { userId: new Types.ObjectId(userId) }},
+        {
+          $lookup: {
+            from: 'groups',
+            localField: 'groupId',
+            foreignField: '_id',
+            as: 'groupInfo'
+          }
+        }
+      ])
+    ctx.body = createRes($SuccessCode, groupContactList || [], "");
+  } catch (err) {
+    console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
   }
 }
