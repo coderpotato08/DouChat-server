@@ -12,8 +12,11 @@ export enum EventType {
   ANSWER_OFFER = "answer-offer",  // 响应sdp
   ICE_CANDIDATE = "ice_candidate",  // 发送ICE到其他客户端
   JOIN_SUCCESS = "join-success",
-  ADD_USER = "add-user",
-  SEND_MESSAGE = "send-message",
-  RECEIVE_MESSAGE = "receive-message",
-  READ_MESSAGE = "read-message",
+  ADD_USER = "add-user",   // 用户登录
+  SEND_MESSAGE = "send-message",  // 私人消息发送
+  RECEIVE_MESSAGE = "receive-message",  // 私人消息接收
+  READ_MESSAGE = "read-message",  // 消息已读
+  ADD_GROUOP_USER = "add-group-user", // 用户加入群聊
+  SEND_GROUP_MESSAGE = "send-group-message",  // 群消息发送
+  RECEIVE_GROUP_MESSAGE = "receive-group-message",  // 群消息接收
 }

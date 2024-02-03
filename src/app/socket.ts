@@ -1,7 +1,8 @@
 import { Server } from "socket.io";
 import logUtil, { LogGenerateType } from '../utils/log-utils';
 import {
-  saveUserMessage
+  saveUserMessage,
+  saveGroupMessage,
 } from '../controllers/messageController';
 import {
   socket_findOneUser,
@@ -17,7 +18,9 @@ import { EventType } from "../constant/socketTypes";
 const socketRegister = (io: Server) => {
   const onlineUser = new Map(); // 在线用户
   const logOnlineInfo = logUtil(LogGenerateType.ONLINE_USER); 
-  // ----------- 会议 ----------------------
+
+  const lastGroupRoomMap: Map<string, string> = new Map(); // 用户上次加入的群，同一时间用户只能在一个群，
+  const groupRoomMap: Map<string, Set<string>> = new Map(); // 群聊房间映射
   const meetingMap = new Map(); // 房间映射
   const socketMap = new Map(); // 客户端socket实例
 
@@ -43,6 +46,27 @@ const socketRegister = (io: Server) => {
 
     socket.on(EventType.READ_MESSAGE, async ({ fromId, toId }) => {
       await cleanContactUnread(fromId, toId);
+    })
+
+    socket.on(EventType.ADD_GROUOP_USER, ({userId, groupId}) => {
+      if(lastGroupRoomMap.has(userId)) {  // 如果用户之前进入了某个群，那就先移除
+        const userSet = groupRoomMap.get(lastGroupRoomMap.get(userId)!);
+        userSet!.delete(userId);
+      }
+      if(!groupRoomMap.has(groupId)) {
+        groupRoomMap.set(groupId, new Set([userId]))
+      } else {
+        const userSet = groupRoomMap.get(groupId);
+        userSet!.add(userId);
+      }
+      lastGroupRoomMap.set(userId, groupId);
+      socket.join(groupId);
+    })
+
+    socket.on(EventType.SEND_GROUP_MESSAGE, async (data) => {
+      const { groupId } = data;
+      const msgData: any = await saveGroupMessage(data);
+      socket.in(groupId).emit(EventType.RECEIVE_GROUP_MESSAGE, msgData)
     })
 
     // ----------- 会议 ----------------------

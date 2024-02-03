@@ -4,7 +4,9 @@ import { createRes } from '../models/responseModel';
 import UserContactsModel from '../models/userContactsModel';
 import UserMessageModel from '../models/userMessageModel';
 import GroupContactsModel from '../models/groupContactsModel';
-import { CreateGroupContactParams, LoadContactListParams, LoadContactParams } from '../constant/apiTypes';
+import GroupMessageModel from '../models/groupMessageModel';
+import GroupUserModel from '../models/groupUserModel';
+import { CreateGroupContactParams, LoadContactListParams, LoadContactParams, LoadGroupContactParams } from '../constant/apiTypes';
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from '../constant/errorData';
 
 // 查询聊天栏列表
@@ -96,7 +98,7 @@ export const createGroupContact = async (ctx: Context) => {
 export const loadGroupContactList = async (ctx: Context) => {
   const { userId } = (ctx.request.body as LoadContactListParams);
   try {
-    const groupContactList = await GroupContactsModel
+    const list = await GroupContactsModel
       .aggregate([
         {$match: { userId: new Types.ObjectId(userId) }},
         {
@@ -108,7 +110,72 @@ export const loadGroupContactList = async (ctx: Context) => {
           }
         }
       ])
+    const groupContactList = await Promise.all(list.map(async (groupContact) => {
+      const { groupId, groupInfo, ...rest } = groupContact
+      const usersList = await GroupUserModel
+        .find({ groupId, status: 1 }, { userId: 1 }, { lean: true })
+        .populate({
+          path: "userId",
+          model: "Users",
+          select: ["username", "avatarImage"],
+        })
+        .sort({time: 1})
+        .limit(4)
+      const recentMessageList = await GroupMessageModel
+        .find({ groupId })
+        .sort({ time: -1 })
+        .limit(1)
+      return {
+        ...rest,
+        groupId,
+        groupInfo: {
+          ...groupInfo[0], 
+          usersAvaterList: usersList.map((item: any) => item.userId?.avatarImage)
+        },
+        recentMessage: recentMessageList[0]
+      }
+    }))
     ctx.body = createRes($SuccessCode, groupContactList || [], "");
+  } catch (err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const loadGroupContact =  async (ctx: Context) => {
+  const { userId, groupId } = (ctx.request.body as LoadGroupContactParams);
+  try {
+    const list = await await GroupContactsModel
+      .aggregate([
+        {$match: { userId: new Types.ObjectId(userId), groupId: new Types.ObjectId(groupId) }},
+        {
+          $lookup: {
+            from: 'groups',
+            localField: 'groupId',
+            foreignField: '_id',
+            as: 'groupInfo'
+          }
+        }
+      ])
+    const groupContact = list[0];
+    const usersList = await GroupUserModel
+      .find({ groupId, status: 1 }, { userId: 1 }, { lean: true })
+      .populate({
+        path: "userId",
+        model: "Users",
+        select: ["username", "avatarImage"],
+      })
+      .sort({time: 1})
+    ctx.body = createRes($SuccessCode, {
+      ...groupContact,
+      groupInfo: {
+        ...groupContact.groupInfo[0],
+        usersList,
+        usersAvaterList: usersList
+          .slice(0, 4)
+          .map((item: any) => item.userId?.avatarImage)
+      }
+    }, "");
   } catch (err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
