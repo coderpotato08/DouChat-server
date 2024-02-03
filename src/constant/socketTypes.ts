@@ -1,3 +1,5 @@
+import { MessageTypeEnum } from "./commonTypes";
+
 export enum EventType {
   CREATE_MEETING = "create-meeting", // 创建会议
   INVITE_MEETING = "meeting-invite",  // 会议邀请
@@ -19,4 +21,14 @@ export enum EventType {
   ADD_GROUOP_USER = "add-group-user", // 用户加入群聊
   SEND_GROUP_MESSAGE = "send-group-message",  // 群消息发送
   RECEIVE_GROUP_MESSAGE = "receive-group-message",  // 群消息接收
+  GROUP_MESSAGE_UNREAD = "group-message-unread", // 未读群消息 +1
+  READ_GROUP_MESSAGE = "read-group-message", // 群消息已读
+}
+
+export interface SocketSendGroupMessageParams {
+  fromId: string,
+  groupId: string
+  msgType: MessageTypeEnum.TEXT,
+  msgContent: any,
+  time: string,
 }

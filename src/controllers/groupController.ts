@@ -4,6 +4,8 @@ import GroupUserModel from "../models/groupUserModel";
 import { CreateGroupParams, DisbandGroupParams, LoadGroupListParams, LoadGroupUsersParams, QuitGroupParams } from "../constant/apiTypes";
 import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
+import { Types } from "mongoose";
+import { Socket } from "socket.io";
 
 export const createGroup = async (ctx: Context) => {
   const { groupName, groupNumber, creator, users, sign} = (ctx.request.body as CreateGroupParams);
@@ -119,4 +121,9 @@ export const disbandGroup = async (ctx: Context) => {
     console.log(err)
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
   }
+}
+
+export const socket_getGroups = async (userId: string) => {
+  const groupList = await GroupUserModel.find({ userId }, null, { lean: true });
+  return groupList
 }

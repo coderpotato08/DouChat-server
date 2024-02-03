@@ -52,3 +52,13 @@ export interface DeleteFriendParams {
   userId: string,
   friendId: string,
 }
+export interface AddGroupMessageUnreadParams {
+  userId: string,
+  groupId: string,
+  messageId: string,
+}
+export interface CleanGroupMessageUnreadParams {
+  userId: string,
+  groupId: string,
+  messageId?: string,
+}

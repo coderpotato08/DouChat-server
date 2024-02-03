@@ -6,7 +6,13 @@ import UserMessageModel from '../models/userMessageModel';
 import GroupContactsModel from '../models/groupContactsModel';
 import GroupMessageModel from '../models/groupMessageModel';
 import GroupUserModel from '../models/groupUserModel';
-import { CreateGroupContactParams, LoadContactListParams, LoadContactParams, LoadGroupContactParams } from '../constant/apiTypes';
+import GroupMessageReadModel from '../models/groupMessageReadModel';
+import { 
+  CreateGroupContactParams,
+  LoadContactListParams,
+  LoadContactParams,
+  LoadGroupContactParams
+} from '../constant/apiTypes';
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from '../constant/errorData';
 
 // 查询聊天栏列表
@@ -112,27 +118,35 @@ export const loadGroupContactList = async (ctx: Context) => {
       ])
     const groupContactList = await Promise.all(list.map(async (groupContact) => {
       const { groupId, groupInfo, ...rest } = groupContact
-      const usersList = await GroupUserModel
-        .find({ groupId, status: 1 }, { userId: 1 }, { lean: true })
-        .populate({
-          path: "userId",
-          model: "Users",
-          select: ["username", "avatarImage"],
-        })
-        .sort({time: 1})
-        .limit(4)
-      const recentMessageList = await GroupMessageModel
-        .find({ groupId })
-        .sort({ time: -1 })
-        .limit(1)
-      return {
+      const [usersList, recentMessageList, unReadList] = await Promise.all([
+        // 处理群头图，取前4用户的头像
+        await GroupUserModel  
+          .find({ groupId, status: 1 }, { userId: 1 }, { lean: true })
+          .populate({
+            path: "userId",
+            model: "Users",
+            select: ["username", "avatarImage"],
+          })
+          .sort({time: 1})
+          .limit(4),
+        // 处理最近一条消息
+        await GroupMessageModel
+          .find({ groupId })
+          .sort({ time: -1 })
+          .limit(1),
+        // 处理未读消息数
+        await GroupMessageReadModel
+          .find({ groupId, userId, unread: true })
+      ])
+      return { 
         ...rest,
         groupId,
         groupInfo: {
           ...groupInfo[0], 
           usersAvaterList: usersList.map((item: any) => item.userId?.avatarImage)
         },
-        recentMessage: recentMessageList[0]
+        unreadNum: unReadList.length,
+        recentMessage: recentMessageList[0],
       }
     }))
     ctx.body = createRes($SuccessCode, groupContactList || [], "");

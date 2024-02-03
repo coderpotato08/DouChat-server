@@ -2,7 +2,9 @@ import { Server } from "socket.io";
 import logUtil, { LogGenerateType } from '../utils/log-utils';
 import {
   saveUserMessage,
-  saveGroupMessage,
+  socket_CleanGroupMessageUnread,
+  socket_GroupMessageUnread,
+  socket_SaveGroupMessage,
 } from '../controllers/messageController';
 import {
   socket_findOneUser,
@@ -11,28 +13,43 @@ import {
   updateMeetingEndTime 
 }from '../controllers/meetingController';
 import { 
-  addContactUnread, cleanContactUnread 
+  addContactUnread, 
+  cleanContactUnread 
 } from "../controllers/contactsController";
-import { EventType } from "../constant/socketTypes";
+import { 
+  socket_getGroups 
+} from './../controllers/groupController';
+import { EventType, SocketSendGroupMessageParams } from "../constant/socketTypes";
+import { CleanGroupMessageUnreadParams } from "../constant/apiTypes";
 
 const socketRegister = (io: Server) => {
   const onlineUser = new Map(); // 在线用户
   const logOnlineInfo = logUtil(LogGenerateType.ONLINE_USER); 
 
-  const lastGroupRoomMap: Map<string, string> = new Map(); // 用户上次加入的群，同一时间用户只能在一个群，
   const groupRoomMap: Map<string, Set<string>> = new Map(); // 群聊房间映射
   const meetingMap = new Map(); // 房间映射
   const socketMap = new Map(); // 客户端socket实例
 
-  io.on("connection", (socket) => {
+  io.on("connection", async (socket) => {
 
      // ----------- 聊天 ----------------------
-    socket.on(EventType.ADD_USER, (userInfo) => {
+    socket.on(EventType.ADD_USER, async (userInfo) => {
       const { username, _id } = userInfo
       if (!onlineUser.has(_id)) {
         logOnlineInfo(userInfo, onlineUser.size+1)
       };
       onlineUser.set(_id, socket.id)
+      const groupList = await socket_getGroups(_id);
+      groupList.forEach((group) => {  // 入群
+        const groupId = group.groupId.toString();
+        if(!groupRoomMap.has(groupId)) {
+          groupRoomMap.set(groupId, new Set([_id]))
+        } else {
+          const userSet = groupRoomMap.get(groupId);
+          userSet!.add(_id);
+        }
+        socket.join(groupId);
+      })
     });
   
     socket.on(EventType.SEND_MESSAGE, async (data) => {
@@ -49,24 +66,35 @@ const socketRegister = (io: Server) => {
     })
 
     socket.on(EventType.ADD_GROUOP_USER, ({userId, groupId}) => {
-      if(lastGroupRoomMap.has(userId)) {  // 如果用户之前进入了某个群，那就先移除
-        const userSet = groupRoomMap.get(lastGroupRoomMap.get(userId)!);
-        userSet!.delete(userId);
-      }
       if(!groupRoomMap.has(groupId)) {
         groupRoomMap.set(groupId, new Set([userId]))
       } else {
         const userSet = groupRoomMap.get(groupId);
         userSet!.add(userId);
       }
-      lastGroupRoomMap.set(userId, groupId);
       socket.join(groupId);
     })
 
-    socket.on(EventType.SEND_GROUP_MESSAGE, async (data) => {
-      const { groupId } = data;
-      const msgData: any = await saveGroupMessage(data);
-      socket.in(groupId).emit(EventType.RECEIVE_GROUP_MESSAGE, msgData)
+    socket.on(EventType.SEND_GROUP_MESSAGE, async (data: SocketSendGroupMessageParams) => {
+      try {
+        const { groupId, fromId } = data;
+        const msgData: any = await socket_SaveGroupMessage(data);
+        const messageId = msgData._id!.toString();
+        // 将用户消息设置为未读
+        await socket_GroupMessageUnread({ groupId, userId: fromId, messageId });
+        socket.in(groupId).emit(EventType.RECEIVE_GROUP_MESSAGE, msgData);
+        socket.in(groupId).emit(EventType.GROUP_MESSAGE_UNREAD, {groupId, messageId});
+      } catch(err) {
+        console.log(err)
+      }
+    })
+
+    socket.on(EventType.READ_GROUP_MESSAGE, async(data: CleanGroupMessageUnreadParams) => {
+      try {
+        await socket_CleanGroupMessageUnread(data);
+      } catch(err) {
+        console.log(err)
+      }
     })
 
     // ----------- 会议 ----------------------
