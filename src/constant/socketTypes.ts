@@ -1,4 +1,4 @@
-import { MessageTypeEnum } from "./commonTypes";
+import { ApplyStatusEnum, MessageTypeEnum } from "./commonTypes";
 
 export enum EventType {
   CREATE_MEETING = "create-meeting", // 创建会议
@@ -23,6 +23,8 @@ export enum EventType {
   RECEIVE_GROUP_MESSAGE = "receive-group-message",  // 群消息接收
   GROUP_MESSAGE_UNREAD = "group-message-unread", // 未读群消息 +1
   READ_GROUP_MESSAGE = "read-group-message", // 群消息已读
+  ACCEPT_GROUP_INVITE = "accept-group-invite", // 接受群邀请
+  ACCEPT_GROUP_INVITE_SUCCESS = "accept-group-invite-success", // 接受群邀请
 }
 
 export interface SocketSendGroupMessageParams {
@@ -31,4 +33,15 @@ export interface SocketSendGroupMessageParams {
   msgType: MessageTypeEnum.TEXT,
   msgContent: any,
   time: string,
+}
+
+export interface SocketCleanGroupMessageUnreadParams {
+  userId: string,
+  groupId: string,
+  messageId?: string,
+}
+
+export interface SocketChangeGroupStatusParams {
+  id: string,
+  changeStatus: ApplyStatusEnum,
 }

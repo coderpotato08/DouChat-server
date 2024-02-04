@@ -26,4 +26,4 @@ const GroupMessageReadSchema = new Schema<GroupMessageReadDocument>({
   },
 })
 
-export default model<GroupMessageReadDocument>('group_message_read', GroupMessageReadSchema)
+export default model<GroupMessageReadDocument>('group_message_reads', GroupMessageReadSchema)

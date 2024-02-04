@@ -17,7 +17,7 @@ const GroupUserSchema = new Schema<GroupUserDocument>({
     type: Types.ObjectId,
     ref: "Users",
   },
-  state: { // 状态（0:申请中，1:已为加入该群，2:未加入群）
+  state: { // 状态（0:申请中，1:已为加入该群，2:已拒绝未加入群）
     type: Number,
     enum: [0, 1, 2]
   },  

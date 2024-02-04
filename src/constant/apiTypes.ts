@@ -1,9 +1,12 @@
+import { ApplyStatusEnum } from "./commonTypes"
+
 export interface FriendNotificationsParams {
   userId: string
 }
 export interface LoadContactListParams extends FriendNotificationsParams {}
 export interface LoadUserInfoParams extends FriendNotificationsParams {}
 export interface LoadGroupListParams extends FriendNotificationsParams {}
+export interface LoadGroupNotificationsParams extends FriendNotificationsParams {}
 
 export enum GenderEnum {
   MAN = 'man',
@@ -21,7 +24,7 @@ export interface RegisterParams {
 
 export interface FriendStatusChangeParams {
   id: string,
-  changeStatus: 0 | 1 | 2
+  changeStatus: ApplyStatusEnum
 }
 
 export interface LoadContactParams {
@@ -41,7 +44,10 @@ export interface LoadGroupUsersParams {
 }
 export interface DisbandGroupParams extends LoadGroupUsersParams {}
 export interface LoadGroupMessageListParams extends LoadGroupUsersParams {}
-
+export interface AddGroupUsersParams extends LoadGroupUsersParams {
+  inviterId: string
+  userList: string[],
+}
 export interface QuitGroupParams extends LoadGroupUsersParams {
   userId: string
 }
@@ -62,3 +68,8 @@ export interface CleanGroupMessageUnreadParams {
   groupId: string,
   messageId?: string,
 }
+
+export interface DeleteGroupNotificationParams {
+  nid: string
+}
+export interface DeleteFriendNotificationParams extends DeleteGroupNotificationParams {}

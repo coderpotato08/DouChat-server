@@ -1,5 +1,6 @@
 import UserModel from "../models/usersModel";
 import FriendsModel from "../models/friendsModel";
+import FriendNotificationModel from "../models/friendNotificationModel";
 import UserContactsModel from "../models/userContactsModel";
 import UserMessageModel from "../models/userMessageModel";
 import Jwt from "../jwt/Jwt";
@@ -7,12 +8,14 @@ import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import { Context } from "koa";
 import { 
+  DeleteFriendNotificationParams,
   DeleteFriendParams,
   FriendNotificationsParams,
   FriendStatusChangeParams,
   LoadUserInfoParams,
   RegisterParams,
 } from "../constant/apiTypes";
+import { ApplyStatusEnum } from "../constant/commonTypes";
 
 export const login = async (ctx: Context) => {
   const { username, password } = (ctx.request.body as any);
@@ -99,7 +102,7 @@ export const searchUser = async (ctx: Context) => { // 模糊查询用户
           { friendId: userInfo._id.toString(), userId: currUserId }
         ]
       })
-      userInfo.isFriend = existfriend && existfriend.status == 1;
+      userInfo.isFriend = existfriend
       return userInfo;
     }))
     ctx.body = createRes($SuccessCode, {
@@ -139,52 +142,52 @@ export const loadUserInfo = async (ctx: Context) => { // 查询用户信息
 
 export const addFriend = async (ctx: Context) => {  // 添加好友
   const { userId, friendId } = (ctx.request.body as any);
-  const filter = {
-    $or: [
-      { userId, friendId },
-      { userId: friendId, friendId: userId },
-    ],
-  }
-  const relationship = await FriendsModel.findOne(filter);
-  if(relationship) {
-    if(relationship.status == 0) {
-      ctx.body = createRes($SuccessCode, {
-        status: "success",
-        message: "已申请添加好友，请等待申请通过"
-      }, "")
-    } else if(relationship.status == 2) {
-      await FriendsModel.updateOne(filter, { status: 0 });
+  try {
+    const filter = {
+      $or: [
+        { userId, friendId },
+        { userId: friendId, friendId: userId },
+      ],
+    }
+    const relationship = await FriendNotificationModel.findOne(filter);
+    if(relationship) {
+      if(relationship.status == ApplyStatusEnum.APPLYING) {
+        ctx.body = createRes($SuccessCode, {
+          status: "success",
+          message: "已申请添加好友，请等待申请通过"
+        }, "")
+      } else if(relationship.status == ApplyStatusEnum.REJECTED) {
+        await FriendNotificationModel.updateOne(filter, { status: 0, applyTime: new Date() });
+        ctx.body = createRes($SuccessCode, {
+          status: "success",
+          message: "申请成功"
+        }, "")
+      }
+    } else {
+      await FriendNotificationModel.create({ userId, friendId, status: 0 });
       ctx.body = createRes($SuccessCode, {
         status: "success",
         message: "申请成功"
       }, "")
     }
-  } else {
-    await FriendsModel.create({ userId, friendId, status: 0 });
-    ctx.body = createRes($SuccessCode, {
-      status: "success",
-      message: "申请成功"
-    }, "")
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err);
   }
 }
 
 export const loadFriendNotifications = async (ctx: Context) => {  // 查询好友关系
   const { userId } = (ctx.request.body as FriendNotificationsParams);
   try { 
-    const friendList = await FriendsModel
-      .find({
-        friendId: userId,
-        status: 0
-      })
+    const list = await FriendNotificationModel
+      .find({ friendId: userId })
       .populate({
         path: 'userId',
         model: "Users",
         select: ["nickname", "username", "avatarImage"],
       })
       .sort({ status: 1 })
-    ctx.body = createRes($SuccessCode, {
-      friendList
-    }, "")
+    ctx.body = createRes($SuccessCode, list || [], "")
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
@@ -195,7 +198,7 @@ export const loadFriendList = async (ctx: Context) => {  // 查询好友列表
   const { userId } = (ctx.request.body as FriendNotificationsParams);
   try {
     const friendList = await FriendsModel
-      .find({$or: [{ friendId: userId, status: 1 }, { userId, status: 1 }]}, null, {lean: true})
+      .find({$or: [{ friendId: userId }, { userId }]}, null, {lean: true})
       .populate({
         path: 'userId',
         model: "Users",
@@ -206,7 +209,6 @@ export const loadFriendList = async (ctx: Context) => {  // 查询好友列表
         model: "Users",
         select: ["nickname", "username", "avatarImage"],
       })
-      .sort({ status: 1 })
   
     ctx.body = createRes($SuccessCode, {
       friendList: friendList.map((item) => {
@@ -227,22 +229,33 @@ export const loadFriendList = async (ctx: Context) => {  // 查询好友列表
 export const changetFriendStatus = async (ctx: Context) => {  // 同意/拒绝好友申请
   const { id, changeStatus } = (ctx.request.body as FriendStatusChangeParams);
   try {
-    const relationship = await FriendsModel
-      .findOne({_id: id}, null, {lean: true});
-    if(relationship) {
-      const result = await FriendsModel.updateOne({ _id: id }, { status: changeStatus });
-      if (result.modifiedCount > 0) {
-        ctx.body = createRes($SuccessCode, {
-          status: "success",
-          relationship: {
-            ...relationship,
-            status: changeStatus
-          }
-        }, "")
-      } else {
-        ctx.body = createRes($ErrorCode.FRIENDSHIP_NOT_EXIST, null, "")
-      }
+    const relationship = await FriendNotificationModel
+      .findOneAndUpdate({_id: id}, { status: changeStatus }, {lean: true});
+    if (changeStatus === ApplyStatusEnum.ACCEPT) {
+      await FriendsModel.create({
+        userId: relationship?.userId.toString(),
+        friendId: relationship?.friendId.toString(),
+      })
     }
+    ctx.body = createRes($SuccessCode, {
+      status: "success",
+      relationship: {
+        ...relationship,
+      }
+    }, "")
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const deleteFriendNotification = async (ctx: Context) => {
+  const { nid } = (ctx.request.body as DeleteFriendNotificationParams);
+  try {
+    await FriendNotificationModel.deleteOne({ _id: nid });
+    ctx.body = createRes($SuccessCode, {
+      status: "success",
+    }, "")
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
@@ -256,13 +269,6 @@ export const deleteFriend = async (ctx: Context) => {
       {userId, friendId},
       {userId: friendId, friendId: userId}
     ]});
-    await UserContactsModel.deleteMany({  // 删除好友关系
-      users: {$all: [userId, friendId]}
-    })
-    await UserMessageModel.deleteMany({$or: [ // 删除聊天记录
-      {fromId: userId, toId: friendId},
-      {fromId: friendId, toId: userId}
-    ]})
     ctx.body = createRes($SuccessCode, { status: "success" }, "")
   } catch (err) {
     console.log(err);

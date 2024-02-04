@@ -1,11 +1,23 @@
 import { Context } from "koa";
 import GroupModel from "../models/groupsModel";
 import GroupUserModel from "../models/groupUserModel";
-import { CreateGroupParams, DisbandGroupParams, LoadGroupListParams, LoadGroupUsersParams, QuitGroupParams } from "../constant/apiTypes";
+import GroupNotificationModel from "../models/groupNotificationModel";
+import { 
+  AddGroupUsersParams,
+  CreateGroupParams,
+  DeleteGroupNotificationParams,
+  DisbandGroupParams,
+  LoadGroupListParams,
+  LoadGroupNotificationsParams,
+  LoadGroupUsersParams,
+  QuitGroupParams
+} from "../constant/apiTypes";
 import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import { Types } from "mongoose";
 import { Socket } from "socket.io";
+import { ApplyStatusEnum } from "../constant/commonTypes";
+import { SocketChangeGroupStatusParams } from "../constant/socketTypes";
 
 export const createGroup = async (ctx: Context) => {
   const { groupName, groupNumber, creator, users, sign} = (ctx.request.body as CreateGroupParams);
@@ -21,7 +33,6 @@ export const createGroup = async (ctx: Context) => {
       const groupUsersList = [...users, creator].map((userId) => ({
         userId,
         groupId: groupInfo._id,
-        state: 1,
         time: new Date(),
       }));
       await GroupUserModel.create(groupUsersList);
@@ -41,7 +52,7 @@ export const loadGroupList = async (ctx: Context) => {
   const { userId } = (ctx.request.body as LoadGroupListParams);
   try {
     const groupList = await GroupUserModel
-      .find({ userId, status: 1 }, null, { lean: true })
+      .find({ userId }, null, { lean: true })
       .populate({
         path: "userId",
         model: "Users",
@@ -59,7 +70,7 @@ export const loadGroupList = async (ctx: Context) => {
     const newGroupList = await Promise.all(groupList.map(async (group) => { // 处理成员头像，客户端组成群聊icon
       const { userId, groupId, ...rest} = group
       const usersList = await GroupUserModel
-        .find({ groupId, status: 1 }, { userId: 1 }, { lean: true })
+        .find({ groupId }, { userId: 1 }, { lean: true })
         .populate({
           path: "userId",
           model: "Users",
@@ -87,7 +98,7 @@ export const loadGroupUsers = async (ctx: Context) => {
   const { groupId } = (ctx.request.body as LoadGroupUsersParams);
   try {
     const userList = await GroupUserModel
-      .find({groupId, state: 1}, {userId: 1}, {lean: true})
+      .find({groupId}, {userId: 1}, {lean: true})
       .populate({
         path: "userId",
         model: "Users",
@@ -97,6 +108,31 @@ export const loadGroupUsers = async (ctx: Context) => {
   } catch (err) {
     console.log(err)
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const inviteGroupUsers = async (ctx: Context) => {
+  const { inviterId, groupId, userList } = (ctx.request.body as AddGroupUsersParams);
+  try {
+    await Promise.all(userList.map(async (id) => {
+      const existNote = await GroupNotificationModel.findOne({ inviterId, groupId, userId: id, status: 0});
+      // 判断是否有已存在的申请，且状态申请中
+      if(existNote) { // 存在就更新时间
+        await GroupNotificationModel.updateOne({_id: existNote._id}, {createTime: new Date()})
+      } else {  // 不存在新建
+        await GroupNotificationModel.create({
+          inviterId,
+          groupId,
+          userId: id,
+          status: 0,
+          createTime: new Date(),
+        })
+      }
+    }));
+    ctx.body = createRes($SuccessCode, { status: "success" }, "")
+  } catch (err) {
+    console.log(err)
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
   }
 }
 
@@ -120,6 +156,71 @@ export const disbandGroup = async (ctx: Context) => {
   } catch (err) {
     console.log(err)
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const loadGroupNotifications = async (ctx: Context) => {
+  const { userId } = (ctx.request.body as LoadGroupNotificationsParams);
+  try {
+    const list = await GroupNotificationModel
+      .find({ userId }, null, {lean: true})
+      .populate({
+        path: 'inviterId',
+        model: "Users",
+        select: ["username", "avatarImage", "nickname"],
+      })
+      .populate({
+        path: 'groupId',
+        model: "groups",
+        select: ["groupName", "groupNumber", "sign"],
+      })
+      .sort({ createTime: -1})
+    ctx.body = createRes($SuccessCode, list.map((note) => {
+      const { inviterId, groupId, ...rest } = note
+      return {
+        ...rest,
+        inviter: inviterId,
+        groupInfo: groupId
+      }
+    }), "")
+  } catch (err) {
+    console.log(err)
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const deleteGroupNotification = async (ctx: Context) => {
+  const { nid } = (ctx.request.body as DeleteGroupNotificationParams);
+  try {
+    await GroupNotificationModel.deleteOne({_id: nid});
+    ctx.body = createRes($SuccessCode, {
+      status: "success",
+    }, "")
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const socket_ChangeGroupNotificationStatus = async (data: SocketChangeGroupStatusParams) => {
+  const { id, changeStatus } = data;
+  try {
+    const groupNote: any = await GroupNotificationModel
+      .findOneAndUpdate({ _id: id }, {status: changeStatus})
+      .populate({
+        path: "userId",
+        model: "Users",
+        select: ["nickname"],
+      })
+    if(changeStatus === ApplyStatusEnum.ACCEPT) {
+      await GroupUserModel.create({
+        groupId: groupNote?.groupId.toString(),
+        userId: groupNote?.userId._id.toString(),
+      })
+    }
+    return groupNote || {};
+  } catch (err) {
+    console.log(err)
   }
 }
 

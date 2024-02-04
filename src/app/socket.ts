@@ -17,10 +17,15 @@ import {
   cleanContactUnread 
 } from "../controllers/contactsController";
 import { 
+  socket_ChangeGroupNotificationStatus,
   socket_getGroups 
 } from './../controllers/groupController';
-import { EventType, SocketSendGroupMessageParams } from "../constant/socketTypes";
-import { CleanGroupMessageUnreadParams } from "../constant/apiTypes";
+import { 
+  EventType, 
+  SocketChangeGroupStatusParams, 
+  SocketCleanGroupMessageUnreadParams, 
+  SocketSendGroupMessageParams 
+} from "../constant/socketTypes";
 
 const socketRegister = (io: Server) => {
   const onlineUser = new Map(); // 在线用户
@@ -89,9 +94,19 @@ const socketRegister = (io: Server) => {
       }
     })
 
-    socket.on(EventType.READ_GROUP_MESSAGE, async(data: CleanGroupMessageUnreadParams) => {
+    socket.on(EventType.READ_GROUP_MESSAGE, async (data: SocketCleanGroupMessageUnreadParams) => {
       try {
         await socket_CleanGroupMessageUnread(data);
+      } catch(err) {
+        console.log(err)
+      }
+    })
+
+    socket.on(EventType.ACCEPT_GROUP_INVITE, async (data: SocketChangeGroupStatusParams) => {
+      try {
+        const groupNote: any = await socket_ChangeGroupNotificationStatus(data);
+        // const { userId: userInfo = {}, groupId } = groupNote
+        // socket.emit(EventType.ACCEPT_GROUP_INVITE_SUCCESS)
       } catch(err) {
         console.log(err)
       }

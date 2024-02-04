@@ -1,4 +1,3 @@
-import { CleanGroupMessageUnreadParams } from './../constant/apiTypes';
 import UserMessageModel from '../models/userMessageModel';
 import GroupMessageModel from '../models/groupMessageModel';
 import GroupMessageReadModel from '../models/groupMessageReadModel';
@@ -6,7 +5,7 @@ import GroupUserModel from '../models/groupUserModel';
 import { createRes } from "../models/responseModel";
 import { $SuccessCode, $ErrorCode, $ErrorMessage } from "../constant/errorData";
 import { Context } from 'koa';
-import { AddGroupMessageUnreadParams, LoadGroupMessageListParams } from '../constant/apiTypes';
+import { AddGroupMessageUnreadParams, CleanGroupMessageUnreadParams, LoadGroupMessageListParams } from '../constant/apiTypes';
 
 export const saveUserMessage = async (data: any) => {
   const { fromId, toId } = data;

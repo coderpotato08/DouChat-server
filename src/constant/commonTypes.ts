@@ -3,3 +3,9 @@ export enum MessageTypeEnum {
   IMAGE,
   VIDEO,
 }
+
+export enum ApplyStatusEnum {
+  APPLYING,
+  ACCEPT,
+  REJECTED,
+}

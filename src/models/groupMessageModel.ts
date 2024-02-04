@@ -30,4 +30,4 @@ const GroupMessageModel = new Schema<GroupMessageDocument>({
   },
 })
 
-export default model<GroupMessageDocument>('group_message', GroupMessageModel)
+export default model<GroupMessageDocument>('group_messages', GroupMessageModel)
