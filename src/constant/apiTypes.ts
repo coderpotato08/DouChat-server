@@ -44,7 +44,9 @@ export interface LoadGroupUsersParams {
 }
 export interface LoadGroupInfoParams extends LoadGroupUsersParams {}
 export interface DisbandGroupParams extends LoadGroupUsersParams {}
-export interface LoadGroupMessageListParams extends LoadGroupUsersParams {}
+export interface LoadGroupMessageListParams extends LoadGroupUsersParams {
+  limitTime: Date,
+}
 export interface AddGroupUsersParams extends LoadGroupUsersParams {
   inviterId: string
   userList: string[],

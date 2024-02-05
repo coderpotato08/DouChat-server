@@ -31,11 +31,14 @@ export const saveUserMessage = async (data: any) => {
 }
 
 export const loadMessageList = async (ctx: Context) => {
-  const { fromId, toId } = (ctx.request.body as any);
+  const { fromId, toId, limitTime } = (ctx.request.body as any);
+  const startTime = new Date(limitTime)
   try {
     const messageList = await UserMessageModel
       .find({
-        $or: [{fromId, toId}, {fromId: toId, toId: fromId}]
+        $or: [
+          { fromId, toId, time: {$gt: startTime} },
+          { fromId: toId, toId: fromId, time: {$gt: startTime} }]
       })
       .populate({
         path: 'fromId',
@@ -55,10 +58,11 @@ export const loadMessageList = async (ctx: Context) => {
 }
 
 export const loadGroupMessageList = async (ctx: Context) => {
-  const { groupId } = (ctx.request.body as LoadGroupMessageListParams);
+  const { groupId, limitTime } = (ctx.request.body as LoadGroupMessageListParams);
+  const startTime = new Date(limitTime)
   try {
     const messageList = await GroupMessageModel
-      .find({ groupId })
+      .find({ groupId, time: {$gt: startTime} })
       .populate({
         path: 'fromId',
         model: "Users",

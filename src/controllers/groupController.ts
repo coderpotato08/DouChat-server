@@ -95,7 +95,13 @@ export const loadGroupList = async (ctx: Context) => {
 export const loadGroupInfo = async (ctx: Context) => {
   const { groupId } = (ctx.request.body as LoadGroupInfoParams);
   try {
-    const info = await GroupModel.findOne({_id: groupId}, null, {lean: true});
+    const info = await GroupModel
+      .findOne({_id: groupId}, null, {lean: true})
+      .populate({
+        path: "creator",
+        model: "Users",
+        select: ["nickname", "username", "avatarImage"]
+      });
     const userList = await GroupUserModel
       .find({groupId}, {userId: 1}, {lean: true})
       .populate({

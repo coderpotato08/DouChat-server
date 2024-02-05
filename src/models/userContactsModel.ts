@@ -20,6 +20,7 @@ const userContactSchema = new Schema<UserContactsDocument>({
   }],
   createTime: {
     type: Date,
+    default: new Date(),
   },
   unreadNum: {
     type: Number,

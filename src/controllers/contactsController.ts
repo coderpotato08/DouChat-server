@@ -28,15 +28,15 @@ export const loadUserContactList = async (ctx: Context) => {
       select: ["nickname", "username", "avatarImage", "token"],
     })
   const newContactList = await Promise.all(contactList.map(async (contact: any) => {
-    const { users } = contact;
+    const { users, createTime } = contact;
     const fromId = users[0]._id.toString() === userId ? users[1]._id : users[0]._id
     const messageList = await UserMessageModel
-      .find({ fromId, toId: userId })
+      .find({ fromId, toId: userId, time: { $gt: contact.createTime } })
       .sort({ time: -1 });
     const recentMessageList = await UserMessageModel
       .find({ $or: [
-        {fromId, toId: userId},
-        {fromId: userId, toId: fromId},
+        {fromId, toId: userId, time: { $gt: createTime }},
+        {fromId: userId, toId: fromId, time: { $gt: createTime }},
       ] })
       .sort({ time: -1 })
       .limit(1)
@@ -144,12 +144,12 @@ export const loadGroupContactList = async (ctx: Context) => {
           .limit(4),
         // 处理最近一条消息
         await GroupMessageModel
-          .find({ groupId })
+          .find({ groupId, time: { $gt: groupContact.createTime } })
           .sort({ time: -1 })
           .limit(1),
         // 处理未读消息数
         await GroupMessageReadModel
-          .find({ groupId, userId, unread: true })
+          .find({ groupId, userId, unread: true, time: { $gt: groupContact.createTime } })
       ])
       return { 
         ...rest,
@@ -168,6 +168,7 @@ export const loadGroupContactList = async (ctx: Context) => {
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
   }
 }
+
 
 export const loadGroupContact =  async (ctx: Context) => {
   const { userId, groupId } = (ctx.request.body as LoadGroupContactParams);
@@ -204,6 +205,28 @@ export const loadGroupContact =  async (ctx: Context) => {
       }
     }, "");
   } catch (err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const deleteUserContact = async (ctx: Context) => {
+  const { id } = (ctx.request.body as any);
+  try {
+    await UserContactsModel.deleteOne({_id: id});
+    ctx.body = createRes($SuccessCode, { status: "success" }, "")
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const deleteGroupContact = async (ctx: Context) => {
+  const { id } = (ctx.request.body as any);
+  try {
+    await GroupContactsModel.deleteOne({_id: id});
+    ctx.body = createRes($SuccessCode, { status: "success" }, "")
+  } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
   }
