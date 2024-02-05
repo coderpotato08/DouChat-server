@@ -7,10 +7,12 @@ import {
   CreateGroupParams,
   DeleteGroupNotificationParams,
   DisbandGroupParams,
+  LoadGroupInfoParams,
   LoadGroupListParams,
   LoadGroupNotificationsParams,
   LoadGroupUsersParams,
-  QuitGroupParams
+  QuitGroupParams,
+  UpdateGroupInfoParams
 } from "../constant/apiTypes";
 import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
@@ -88,6 +90,28 @@ export const loadGroupList = async (ctx: Context) => {
       }
     }))
     ctx.body = createRes($SuccessCode, newGroupList, "");
+  } catch(err) {
+    console.log(err)
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const loadGroupInfo = async (ctx: Context) => {
+  const { groupId } = (ctx.request.body as LoadGroupInfoParams);
+  try {
+    const info = await GroupModel.findOne({_id: groupId}, null, {lean: true});
+    const userList = await GroupUserModel
+      .find({groupId}, {userId: 1}, {lean: true})
+      .populate({
+        path: "userId",
+        model: "Users",
+        select: ["nickname", "username", "avatarImage"],
+      })
+    ctx.body = createRes($SuccessCode, {
+      ...info,
+      usersAvaterList: userList.slice(0, 4).map((item: any) => item.userId.avatarImage),
+      userList: userList.map((item) => item.userId),
+    }, "")
   } catch(err) {
     console.log(err)
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
@@ -196,6 +220,17 @@ export const deleteGroupNotification = async (ctx: Context) => {
     ctx.body = createRes($SuccessCode, {
       status: "success",
     }, "")
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const updateGroupInfo = async (ctx: Context) => {
+  const { groupId, sign, groupName } = (ctx.request.body as UpdateGroupInfoParams);
+  try {
+    await GroupModel.updateOne({ _id: groupId }, { $set: { sign, groupName }});
+    ctx.body = createRes($SuccessCode, { status: "success" }, "");
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)

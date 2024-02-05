@@ -42,6 +42,7 @@ export interface CreateGroupParams {
 export interface LoadGroupUsersParams {
   groupId: string
 }
+export interface LoadGroupInfoParams extends LoadGroupUsersParams {}
 export interface DisbandGroupParams extends LoadGroupUsersParams {}
 export interface LoadGroupMessageListParams extends LoadGroupUsersParams {}
 export interface AddGroupUsersParams extends LoadGroupUsersParams {
@@ -78,4 +79,10 @@ export interface DeleteFriendNotificationParams extends DeleteGroupNotificationP
 export interface CreateUserContactParams {
   fromId: string,
   toId: string,
+}
+
+export interface UpdateGroupInfoParams {
+  groupId: string
+  groupName?: string,
+  sign?: string
 }
