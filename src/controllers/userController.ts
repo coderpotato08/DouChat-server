@@ -1,14 +1,11 @@
 import UserModel from "../models/usersModel";
 import FriendsModel from "../models/friendsModel";
 import FriendNotificationModel from "../models/friendNotificationModel";
-import UserContactsModel from "../models/userContactsModel";
-import UserMessageModel from "../models/userMessageModel";
 import Jwt from "../jwt/Jwt";
 import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import { Context } from "koa";
 import { 
-  DeleteFriendNotificationParams,
   DeleteFriendParams,
   FriendNotificationsParams,
   FriendStatusChangeParams,
@@ -176,24 +173,6 @@ export const addFriend = async (ctx: Context) => {  // 添加好友
   }
 }
 
-export const loadFriendNotifications = async (ctx: Context) => {  // 查询好友关系
-  const { userId } = (ctx.request.body as FriendNotificationsParams);
-  try { 
-    const list = await FriendNotificationModel
-      .find({ friendId: userId })
-      .populate({
-        path: 'userId',
-        model: "Users",
-        select: ["nickname", "username", "avatarImage"],
-      })
-      .sort({ status: 1 })
-    ctx.body = createRes($SuccessCode, list || [], "")
-  } catch(err) {
-    console.log(err);
-    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
-  }
-}
-
 export const loadFriendList = async (ctx: Context) => {  // 查询好友列表
   const { userId } = (ctx.request.body as FriendNotificationsParams);
   try {
@@ -242,19 +221,6 @@ export const changetFriendStatus = async (ctx: Context) => {  // 同意/拒绝�
       relationship: {
         ...relationship,
       }
-    }, "")
-  } catch(err) {
-    console.log(err);
-    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
-  }
-}
-
-export const deleteFriendNotification = async (ctx: Context) => {
-  const { nid } = (ctx.request.body as DeleteFriendNotificationParams);
-  try {
-    await FriendNotificationModel.deleteOne({ _id: nid });
-    ctx.body = createRes($SuccessCode, {
-      status: "success",
     }, "")
   } catch(err) {
     console.log(err);

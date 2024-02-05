@@ -5,19 +5,15 @@ import GroupNotificationModel from "../models/groupNotificationModel";
 import { 
   AddGroupUsersParams,
   CreateGroupParams,
-  DeleteGroupNotificationParams,
   DisbandGroupParams,
   LoadGroupInfoParams,
   LoadGroupListParams,
-  LoadGroupNotificationsParams,
   LoadGroupUsersParams,
   QuitGroupParams,
   UpdateGroupInfoParams
 } from "../constant/apiTypes";
 import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
-import { Types } from "mongoose";
-import { Socket } from "socket.io";
 import { ApplyStatusEnum } from "../constant/commonTypes";
 import { SocketChangeGroupStatusParams } from "../constant/socketTypes";
 
@@ -179,49 +175,6 @@ export const disbandGroup = async (ctx: Context) => {
     ctx.body = createRes($SuccessCode, {status: "success"}, "")
   } catch (err) {
     console.log(err)
-    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
-  }
-}
-
-export const loadGroupNotifications = async (ctx: Context) => {
-  const { userId } = (ctx.request.body as LoadGroupNotificationsParams);
-  try {
-    const list = await GroupNotificationModel
-      .find({ userId }, null, {lean: true})
-      .populate({
-        path: 'inviterId',
-        model: "Users",
-        select: ["username", "avatarImage", "nickname"],
-      })
-      .populate({
-        path: 'groupId',
-        model: "groups",
-        select: ["groupName", "groupNumber", "sign"],
-      })
-      .sort({ createTime: -1})
-    ctx.body = createRes($SuccessCode, list.map((note) => {
-      const { inviterId, groupId, ...rest } = note
-      return {
-        ...rest,
-        inviter: inviterId,
-        groupInfo: groupId
-      }
-    }), "")
-  } catch (err) {
-    console.log(err)
-    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
-  }
-}
-
-export const deleteGroupNotification = async (ctx: Context) => {
-  const { nid } = (ctx.request.body as DeleteGroupNotificationParams);
-  try {
-    await GroupNotificationModel.deleteOne({_id: nid});
-    ctx.body = createRes($SuccessCode, {
-      status: "success",
-    }, "")
-  } catch(err) {
-    console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
   }
 }
