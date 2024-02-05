@@ -1,6 +1,7 @@
 import {
   loadUserContact,
   loadUserContactList,
+  createUserContact,
   createGroupContact,
   loadGroupContactList,
   loadGroupContact,
@@ -13,6 +14,7 @@ const router = new Router({
 
 router.post('/user-contact-list', loadUserContactList);
 router.post('/loadUserContact', loadUserContact);
+router.post('/createUserContact', createUserContact)
 router.post('/createGroupContact', createGroupContact);
 router.post('/loadGroupContactList', loadGroupContactList);
 router.post('/loadGroupContact', loadGroupContact)

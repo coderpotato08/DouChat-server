@@ -4,7 +4,7 @@ export interface UserContactsDocument{
   contactId: string
   users: [Schema.Types.ObjectId, Schema.Types.ObjectId]
   createTime?: Date,
-  unreadNum: number
+  unreadNum?: number
 }
 // 消息栏-聊天好友表
 const userContactSchema = new Schema<UserContactsDocument>({

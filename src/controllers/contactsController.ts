@@ -9,6 +9,7 @@ import GroupUserModel from '../models/groupUserModel';
 import GroupMessageReadModel from '../models/groupMessageReadModel';
 import { 
   CreateGroupContactParams,
+  CreateUserContactParams,
   LoadContactListParams,
   LoadContactParams,
   LoadGroupContactParams
@@ -57,19 +58,31 @@ export const loadUserContact = async (ctx: Context) => {
         model: "Users",
         select: ["nickname", "username", "avatarImage", "token"],
       })
-    if(contact) {
-      ctx.body = createRes($SuccessCode, contact, "")
-    } else {
-      const users = contactId.split("_");
-      const newContact = await UserContactsModel
-        .create({
-          contactId,
-          users,
-          createTime: new Date(),
-        })
-      ctx.body = createRes($SuccessCode, newContact, "")
+    ctx.body = createRes($SuccessCode, contact, "")
+  } catch (err) {
+    console.log(err)
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const createUserContact = async (ctx: Context) => {
+  const { fromId, toId } = (ctx.request.body as CreateUserContactParams);
+  try {
+    const contactId = `${fromId}_${toId}`
+    const contact = await UserContactsModel.findOne({contactId})
+    if (!contact) {
+      await UserContactsModel.create({
+        contactId,
+        users: [fromId, toId],
+        createTime: new Date(),
+      });
     }
-  } catch (error) {
+    ctx.body = createRes($SuccessCode, {
+      status: "success",
+      contactId
+    }, "")
+  } catch(err) {
+    console.log(err)
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
   }
 }
@@ -200,7 +213,7 @@ export const addContactUnread = async (contactId: string) => {
   const contact = await UserContactsModel.findOne({ contactId });
   if(contact) {
     await UserContactsModel.updateOne({ contactId }, {
-      unreadNum: contact.unreadNum + 1
+      unreadNum: (contact.unreadNum || 0) + 1
     });
   };
 }

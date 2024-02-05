@@ -5,7 +5,12 @@ import GroupUserModel from '../models/groupUserModel';
 import { createRes } from "../models/responseModel";
 import { $SuccessCode, $ErrorCode, $ErrorMessage } from "../constant/errorData";
 import { Context } from 'koa';
-import { AddGroupMessageUnreadParams, CleanGroupMessageUnreadParams, LoadGroupMessageListParams } from '../constant/apiTypes';
+import { 
+  AddGroupMessageUnreadParams,
+  CleanGroupMessageUnreadParams,
+  LoadAllUnreadMesageNumParams,
+  LoadGroupMessageListParams
+} from '../constant/apiTypes';
 
 export const saveUserMessage = async (data: any) => {
   const { fromId, toId } = data;
@@ -61,6 +66,20 @@ export const loadGroupMessageList = async (ctx: Context) => {
       })
       .sort({ time: 1 })
     ctx.body = createRes($SuccessCode, messageList, "")
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const loadAllUnreadMesageNum = async (ctx: Context) => {
+  const { userId } = (ctx.request.body as LoadAllUnreadMesageNumParams);
+  try {
+    const userUnreadList = await UserMessageModel.find({ toId: userId, state: 0 })
+    const groupUnreadList = await GroupMessageReadModel.find({ userId: { $ne: userId }, unread: true })
+    ctx.body = createRes($SuccessCode, {
+      num: userUnreadList.length + groupUnreadList.length
+    }, "")
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
