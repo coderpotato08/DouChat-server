@@ -121,16 +121,25 @@ export const loadGroupInfo = async (ctx: Context) => {
 }
 
 export const loadGroupUsers = async (ctx: Context) => {
-  const { groupId } = (ctx.request.body as LoadGroupUsersParams);
+  const { groupId, keyWord = "" } = (ctx.request.body as LoadGroupUsersParams);
   try {
     const userList = await GroupUserModel
-      .find({groupId}, {userId: 1}, {lean: true})
+      .find({ groupId }, {userId: 1}, {lean: true})
       .populate({
         path: "userId",
         model: "Users",
+        match: {
+          $or: [
+            {nickname: { $regex: keyWord, $options: 'i' }},
+            {username: { $regex: keyWord, $options: 'i' }},
+          ]
+        },
         select: ["nickname", "username", "avatarImage"],
       })
-    ctx.body = createRes($SuccessCode, userList.map((item) => item.userId), "")
+    const result = userList
+      .map((item) => item.userId)
+      .filter(Boolean)
+    ctx.body = createRes($SuccessCode, result, "")
   } catch (err) {
     console.log(err)
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)

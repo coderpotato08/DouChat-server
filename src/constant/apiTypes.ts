@@ -40,6 +40,7 @@ export interface CreateGroupParams {
 }
 
 export interface LoadGroupUsersParams {
+  keyWord?: string
   groupId: string
 }
 export interface LoadGroupInfoParams extends LoadGroupUsersParams {}
