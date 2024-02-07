@@ -27,8 +27,7 @@ const UserMessage = new Schema<UserMessageDocument>({
   },
   time: {
     type: Date,
-    default: new Date(),
-    getter: (v: Date) => dayjs(v).format("YYYY-MM-DD HH:mm:ss")
+    default: () => new Date(),
   },
   state: {  // 已读未读 未读0 已读1
     type: Number,

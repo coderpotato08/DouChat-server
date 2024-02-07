@@ -13,7 +13,6 @@ import {
 } from '../constant/apiTypes';
 
 export const saveUserMessage = async (data: any) => {
-  const { fromId, toId } = data;
   const newMessage = await UserMessageModel.create(data);
   const result = await UserMessageModel
     .findOne({_id: newMessage._id})
