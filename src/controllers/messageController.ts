@@ -8,7 +8,7 @@ import { Context } from 'koa';
 import { 
   AddGroupMessageUnreadParams,
   CleanGroupMessageUnreadParams,
-  LoadAllUnreadMesageNumParams,
+  LoadAllUnreadMessageNumParams,
   LoadGroupMessageListParams
 } from '../constant/apiTypes';
 
@@ -70,20 +70,6 @@ export const loadGroupMessageList = async (ctx: Context) => {
       })
       .sort({ time: 1 })
     ctx.body = createRes($SuccessCode, messageList, "")
-  } catch(err) {
-    console.log(err);
-    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
-  }
-}
-
-export const loadAllUnreadMesageNum = async (ctx: Context) => {
-  const { userId } = (ctx.request.body as LoadAllUnreadMesageNumParams);
-  try {
-    const userUnreadList = await UserMessageModel.find({ toId: userId, state: 0 })
-    const groupUnreadList = await GroupMessageReadModel.find({ userId: { $ne: userId }, unread: true })
-    ctx.body = createRes($SuccessCode, {
-      num: userUnreadList.length + groupUnreadList.length
-    }, "")
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)

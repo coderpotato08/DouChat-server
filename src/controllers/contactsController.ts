@@ -15,6 +15,7 @@ import {
   LoadGroupContactParams
 } from '../constant/apiTypes';
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from '../constant/errorData';
+import dayjs from 'dayjs';
 
 // 查询聊天栏列表
 export const loadUserContactList = async (ctx: Context) => {
@@ -101,6 +102,7 @@ export const createGroupContact = async (ctx: Context) => {
       const groupContact = await GroupContactsModel.create({
         userId,
         groupId,
+        createTime: new Date(),
       });
       ctx.body = createRes($SuccessCode, {
         groupId: groupContact._id,
@@ -131,7 +133,7 @@ export const loadGroupContactList = async (ctx: Context) => {
       ])
     const groupContactList = await Promise.all(list.map(async (groupContact) => {
       const { groupId, groupInfo, ...rest } = groupContact
-      const [usersList, recentMessageList, unReadList] = await Promise.all([
+      const [usersList, recentMessageList, unreadNum] = await Promise.all([
         // 处理群头图，取前4用户的头像
         await GroupUserModel  
           .find({ groupId, status: 1 }, { userId: 1 }, { lean: true })
@@ -148,8 +150,19 @@ export const loadGroupContactList = async (ctx: Context) => {
           .sort({ time: -1 })
           .limit(1),
         // 处理未读消息数
-        await GroupMessageReadModel
-          .find({ groupId, userId, unread: true, time: { $gt: groupContact.createTime } })
+        (async () => {
+          const messages =  await GroupMessageReadModel
+            .find({ groupId, userId, unread: true })
+            .populate({
+              path: "messageId",
+              model: "group_messages",
+              select: ["time"]
+            });
+          const unReadCount = messages.filter(({messageId}) => 
+            dayjs((messageId as any).time).diff(dayjs(groupContact.createTime)) > 0
+          ).length
+          return unReadCount;
+        })()
       ])
       return { 
         ...rest,
@@ -158,7 +171,7 @@ export const loadGroupContactList = async (ctx: Context) => {
           ...groupInfo[0], 
           usersAvaterList: usersList.map((item: any) => item.userId?.avatarImage)
         },
-        unreadNum: unReadList.length,
+        unreadNum,
         recentMessage: recentMessageList[0],
       }
     }))

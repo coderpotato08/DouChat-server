@@ -4,6 +4,7 @@ import {
   deleteGroupNotification,
   loadFriendNotifications,
   loadGroupNotifications,
+  loadAllUnreadCounts,
 } from '../controllers/notificationController';
 
 const router = new Router({
@@ -14,5 +15,6 @@ router.post('/loadFriendNotifications', loadFriendNotifications);
 router.post('/deleteFriendNotification', deleteFriendNotification);
 router.post('/loadGroupNotifications', loadGroupNotifications);
 router.post('/deleteGroupNotification', deleteGroupNotification);
+router.post('/loadAllUnreadCounts', loadAllUnreadCounts)
 
 export default router;

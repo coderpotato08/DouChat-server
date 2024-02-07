@@ -57,7 +57,7 @@ export interface QuitGroupParams extends LoadGroupUsersParams {
 }
 export interface CreateGroupContactParams extends QuitGroupParams {}
 export interface LoadGroupContactParams extends QuitGroupParams {}
-export interface LoadAllUnreadMesageNumParams extends QuitGroupParams {}
+export interface LoadAllUnreadMessageNumParams extends QuitGroupParams {}
 
 export interface DeleteFriendParams {
   userId: string,

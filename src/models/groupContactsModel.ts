@@ -20,7 +20,7 @@ const groupContactsSchema = new Schema<GroupContactsDocument>({
   },
   createTime: {
     type: Date,
-    default: new Date(),
+    default: () => new Date(),
   },
   unreadNum: {
     type: Number,
