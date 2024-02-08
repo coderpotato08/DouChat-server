@@ -3,7 +3,7 @@ import { Schema, model } from 'mongoose';
 
 const { Types } = Schema;
 export interface GroupMessageDocument {
-  fromId: Schema.Types.ObjectId,
+  fromId?: Schema.Types.ObjectId,
   groupId: Schema.Types.ObjectId,
   msgType: number,
   msgContent: Schema.Types.Mixed,

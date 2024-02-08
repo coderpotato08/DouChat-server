@@ -24,8 +24,11 @@ import {
   EventType, 
   SocketChangeGroupStatusParams, 
   SocketCleanGroupMessageUnreadParams, 
+  SocketGroupUserQuitParams, 
   SocketSendGroupMessageParams 
 } from "../constant/socketTypes";
+import { MessageTypeEnum } from "../constant/commonTypes";
+import dayjs from "dayjs";
 
 const socketRegister = (io: Server) => {
   const onlineUser = new Map(); // 在线用户
@@ -105,8 +108,29 @@ const socketRegister = (io: Server) => {
     socket.on(EventType.ACCEPT_GROUP_INVITE, async (data: SocketChangeGroupStatusParams) => {
       try {
         const groupNote: any = await socket_ChangeGroupNotificationStatus(data);
-        // const { userId: userInfo = {}, groupId } = groupNote
-        // socket.emit(EventType.ACCEPT_GROUP_INVITE_SUCCESS)
+        const { userId: userInfo = {}, groupId } = groupNote;
+        const tipMessage = await socket_SaveGroupMessage({
+          groupId,
+          msgType: MessageTypeEnum.TIPS,
+          msgContent: `用户“${userInfo.nickname}”加入了群聊`,
+          time: dayjs(new Date()).format('YYYY-MM-DD HH:mm:ss'),
+        });
+        socket.in(groupId.toString()).emit(EventType.NEW_GROUP_USER_JOIN, tipMessage);
+      } catch(err) {
+        console.log(err)
+      }
+    })
+
+    socket.on(EventType.GROUP_USER_QUIT,  async (data: SocketGroupUserQuitParams) => {
+      try {
+        const { userInfo, groupId } = data;
+        const tipMessage = await socket_SaveGroupMessage({
+          groupId,
+          msgType: MessageTypeEnum.TIPS,
+          msgContent: `用户“${userInfo.nickname}”退出了群聊`,
+          time: dayjs(new Date()).format('YYYY-MM-DD HH:mm:ss'),
+        });
+        socket.in(groupId.toString()).emit(EventType.GROUP_USER_QUIT, tipMessage);
       } catch(err) {
         console.log(err)
       }

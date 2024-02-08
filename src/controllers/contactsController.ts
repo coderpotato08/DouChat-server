@@ -16,6 +16,7 @@ import {
 } from '../constant/apiTypes';
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from '../constant/errorData';
 import dayjs from 'dayjs';
+import { MessageTypeEnum } from '../constant/commonTypes';
 
 // 查询聊天栏列表
 export const loadUserContactList = async (ctx: Context) => {
@@ -146,7 +147,11 @@ export const loadGroupContactList = async (ctx: Context) => {
           .limit(4),
         // 处理最近一条消息
         await GroupMessageModel
-          .find({ groupId, time: { $gt: groupContact.createTime } })
+          .find({ 
+            groupId, 
+            time: { $gt: groupContact.createTime }, 
+            msgType: { $ne: MessageTypeEnum.TIPS }, 
+          })
           .sort({ time: -1 })
           .limit(1),
         // 处理未读消息数
