@@ -2,6 +2,7 @@ import multer from 'koa-multer';
 import Router from 'koa-router';
 import path from 'node:path';
 import {
+  uploadFile,
   uploadImage
 } from '../controllers/uploadController';
 
@@ -17,8 +18,15 @@ let storage = multer.diskStorage({
     cb(null, path.resolve(__dirname, `../public/upload/${savePath}`));
   },
   filename(req, file, cb) {
-    let fileFormat = (file.originalname).split(".");
-    cb(null, `CHAT_${Date.now()}.${fileFormat[fileFormat.length - 1]}`);
+    const { mimetype, originalname } = file;
+    let fileFormat = originalname.split(".");
+    let newFilename;
+    if(mimetype.indexOf('image') > -1) {
+      newFilename = `CHAT_${Date.now()}.${fileFormat[fileFormat.length - 1]}`;
+    } else {
+      newFilename = originalname;
+    }
+    cb(null, newFilename);
   }
 })
 //加载配置
@@ -29,5 +37,6 @@ const router = new Router({
 })
 
 router.post('/image', upload.single('image'), uploadImage);
+router.post('/file', upload.single('file'), uploadFile);
 
 export default router
