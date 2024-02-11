@@ -187,7 +187,6 @@ export const loadGroupContactList = async (ctx: Context) => {
   }
 }
 
-
 export const loadGroupContact =  async (ctx: Context) => {
   const { userId, groupId } = (ctx.request.body as LoadGroupContactParams);
   try {

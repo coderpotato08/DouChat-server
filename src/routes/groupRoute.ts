@@ -7,6 +7,7 @@ import {
   disbandGroup,
   inviteGroupUsers,
   updateGroupInfo,
+  searchGroupList
 } from "../controllers/groupController";
 import Router from "koa-router";
 
@@ -22,5 +23,6 @@ router.post('/quitGroup', quitGroup);
 router.post('/disbandGroup', disbandGroup);
 router.post('/inviteGroupUsers', inviteGroupUsers);
 router.post('/updateGroupInfo', updateGroupInfo);
+router.post('/searchGroupList', searchGroupList)
 
 export default router;

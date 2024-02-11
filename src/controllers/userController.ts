@@ -11,6 +11,7 @@ import {
   FriendStatusChangeParams,
   LoadUserInfoParams,
   RegisterParams,
+  SearchListParams,
 } from "../constant/apiTypes";
 import { ApplyStatusEnum } from "../constant/commonTypes";
 
@@ -199,6 +200,37 @@ export const loadFriendList = async (ctx: Context) => {  // 查询好友列表
         }
       })
     }, "")
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+// 聊天栏查询 好友（用户昵称/用户名）群聊（群成员昵称/用户名）聊天记录
+export const searchFriendList = async (ctx: Context) => {
+  const { userId, keyword } = (ctx.request.body as SearchListParams);
+  try {
+    const regex = new RegExp(keyword, 'i');
+    const userList = await UserModel
+      .find({
+        _id: { $ne: userId },
+        $or: [
+          { nickname: regex },
+          { username: regex },
+        ]
+      }, {username: 1, nickname: 1, avatarImage: 1}, {lean: true});
+    const result: any[] = [];
+    for(let i=0; i< userList.length; i++) {
+      const friend = await FriendsModel
+        .findOne({
+          $or: [
+            { friendId: userId, userId: userList[i]._id }, 
+            { userId, friendId: userList[i]._id }
+          ]
+        }, null, {lean: true});
+      if(friend) result.push(userList[i])
+    }
+    ctx.body = createRes($SuccessCode, result, "")
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)

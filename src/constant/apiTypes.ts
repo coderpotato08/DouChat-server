@@ -89,3 +89,8 @@ export interface UpdateGroupInfoParams {
   groupName?: string,
   sign?: string
 }
+
+export interface SearchListParams {
+  userId: string,
+  keyword: string,
+}

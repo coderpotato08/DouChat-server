@@ -10,6 +10,7 @@ import {
   LoadGroupListParams,
   LoadGroupUsersParams,
   QuitGroupParams,
+  SearchListParams,
   UpdateGroupInfoParams
 } from "../constant/apiTypes";
 import { createRes } from "../models/responseModel";
@@ -202,6 +203,55 @@ export const updateGroupInfo = async (ctx: Context) => {
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, err)
+  }
+}
+
+export const searchGroupList = async (ctx: Context) => {
+  const { userId, keyword } = (ctx.request.body as SearchListParams);
+  try {
+    const regex = new RegExp(keyword, 'i');
+
+    const groupList = await GroupModel
+      .find({}, null, {lean: true});
+    const result = [];
+    for(let i=0; i<groupList.length; i++) {
+      const groupInfo = groupList[i];
+      const usersAvaterList = await GroupUserModel
+        .find({ groupId: groupInfo._id.toString() }, {userId: 1}, {lean: true})
+        .populate({
+          path: "userId",
+          model: "Users",
+          select: ["avatarImage"],
+        })
+        .limit(4)
+      const userList = await GroupUserModel
+        .find({ groupId: groupInfo._id.toString() }, {userId: 1}, {lean: true})
+        .populate({
+          path: "userId",
+          model: "Users",
+          match: {
+            $or: [{username: regex}, {nickname: regex}]
+          },
+          select: ["nickname", "username", "avatarImage"],
+        })
+      const filterUserList = userList
+        .map((item) => item.userId)
+        .filter((item: any) => item && item._id !== userId);
+      const isInGroup = !!await GroupUserModel.findOne({userId, groupId: groupInfo._id.toString()}); // 是否在群内
+      const isGroupNameMatch = groupInfo.groupName.indexOf(keyword) > -1;
+      const isGroupUserMatch = filterUserList.length > 0
+      if(isInGroup && (isGroupNameMatch || isGroupUserMatch)) {
+        result.push({
+          ...groupList[i],
+          usersAvaterList: usersAvaterList.map((item: any) => item.userId.avatarImage),
+          filterUserList,
+        })
+      }
+    }
+    ctx.body = createRes($SuccessCode, result, "");
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
   }
 }
 

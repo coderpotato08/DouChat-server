@@ -7,6 +7,7 @@ import {
   loadFriendList,
   changetFriendStatus,
   deleteFriend,
+  searchFriendList,
 } from '../controllers/userController';
 import Router from 'koa-router';
 
@@ -22,5 +23,6 @@ router.post('/add-friend', addFriend);
 router.post('/friend/list', loadFriendList);
 router.post('/friend/changeStatus', changetFriendStatus);
 router.post('/friend/deleteFriend', deleteFriend);
+router.post('/friend/searchFriendList', searchFriendList);
 
 export default router;

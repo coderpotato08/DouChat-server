@@ -1,6 +1,7 @@
 import {
   loadMessageList,
   loadGroupMessageList,
+  searchMessageList
 } from '../controllers/messageController';
 import Router from 'koa-router';
 
@@ -10,5 +11,6 @@ const router = new Router({
 
 router.post('/loadUserMessageList', loadMessageList);
 router.post('/loadGroupMessageList', loadGroupMessageList);
+router.post('/searchMessageList', searchMessageList)
 
 export default router;
