@@ -1,9 +1,12 @@
+import { Types } from 'mongoose';
 import { MessageTypeEnum } from './../constant/commonTypes';
+import UsersModel from '../models/usersModel';
 import UserContactsModel from '../models/userContactsModel';
 import UserMessageModel from '../models/userMessageModel';
 import GroupMessageModel from '../models/groupMessageModel';
 import GroupMessageReadModel from '../models/groupMessageReadModel';
 import GroupContactsModel from '../models/groupContactsModel';
+import GroupsModel from '../models/groupsModel';
 import GroupUserModel from '../models/groupUserModel';
 import { createRes } from "../models/responseModel";
 import { $SuccessCode, $ErrorCode, $ErrorMessage } from "../constant/errorData";
@@ -12,7 +15,9 @@ import {
   AddGroupMessageUnreadParams,
   CleanGroupMessageUnreadParams,
   LoadGroupMessageListParams,
-  SearchListParams
+  SearchListParams,
+  SearchMatchGroupMessageParams,
+  SearchMatchUserMessageParams
 } from '../constant/apiTypes';
 import { formatMessageText } from '../utils/common-utils';
 import dayjs from 'dayjs';
@@ -45,14 +50,16 @@ export const saveUserMessage = async (data: any) => {
 }
 
 export const loadMessageList = async (ctx: Context) => {
-  const { fromId, toId, limitTime } = (ctx.request.body as any);
-  const startTime = new Date(limitTime)
+  const { fromId, toId, limitTime, pageIndex = 0 } = (ctx.request.body as any);
+  const startTime = new Date(limitTime);
+  const pageSize = 20;
   try {
     const messageList = await UserMessageModel
       .find({
+        time: {$gt: startTime},
         $or: [
-          { fromId, toId, time: {$gt: startTime} },
-          { fromId: toId, toId: fromId, time: {$gt: startTime} }]
+          { fromId, toId },
+          { fromId: toId, toId: fromId }]
       })
       .populate({
         path: 'fromId',
@@ -64,7 +71,9 @@ export const loadMessageList = async (ctx: Context) => {
         model: "Users",
         select: ["username", "avatarImage"],
       })
-      .sort({ time: 1 })
+      .sort({ time: -1 })
+      .skip(pageIndex * pageSize)
+      .limit(pageSize)
     ctx.body = createRes($SuccessCode, messageList, "")
   } catch(err) {
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
@@ -72,8 +81,9 @@ export const loadMessageList = async (ctx: Context) => {
 }
 
 export const loadGroupMessageList = async (ctx: Context) => {
-  const { groupId, limitTime } = (ctx.request.body as LoadGroupMessageListParams);
+  const { groupId, limitTime, pageIndex = 0 } = (ctx.request.body as LoadGroupMessageListParams);
   const startTime = new Date(limitTime)
+  const pageSize = 20;
   try {
     const messageList = await GroupMessageModel
       .find({ groupId, time: {$gt: startTime} })
@@ -82,7 +92,9 @@ export const loadGroupMessageList = async (ctx: Context) => {
         model: "Users",
         select: ["username", "avatarImage", "nickname"],
       })
-      .sort({ time: 1 })
+      .sort({ time: -1 })
+      .skip(pageIndex * pageSize)
+      .limit(pageSize)
     ctx.body = createRes($SuccessCode, messageList, "")
   } catch(err) {
     console.log(err);
@@ -134,7 +146,7 @@ export const searchMessageList = async (ctx: Context) => {
           matchedMessages
         }
       })),
-      Promise.all(groupContactList.map(async (contact) => { // 对群聊聊天记录进行匹配
+      Promise.all(groupContactList.map(async (contact: any) => { // 对群聊聊天记录进行匹配
         const { groupId, createTime } = contact;
         const userList = await GroupUserModel // 处理群头像
           .find({groupId}, {userId: 1}, {lean: true})
@@ -146,13 +158,14 @@ export const searchMessageList = async (ctx: Context) => {
           .limit(4)
         const messages = await GroupMessageModel.find({ 
           time: { $gt: createTime },
+          msgType: { $ne: MessageTypeEnum.TIPS },
           groupId,
         }, {msgContent: 1, time: 1, msgType: 1});
         const matchedMessages = messages
           .filter((message: any) => messageFilter(message, keyword))
           .map(({msgContent, msgType}) => formatMessageText(msgContent, msgType)) // 格式化为展示的文本消息
         return {
-          chatId: groupId,
+          chatId: groupId._id,
           createTime,
           groupInfo: {
             ...contact.groupId,
@@ -167,6 +180,116 @@ export const searchMessageList = async (ctx: Context) => {
       ...matchedGroupContactList.filter((contact: any) => contact.matchedMessages.length > 0)
     ].sort((a, b) => dayjs(a.createTime).diff(dayjs(b.createTime)))
     ctx.body = createRes($SuccessCode, contactList, "");
+  } catch(err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const searchMatchUserMessageList = async (ctx: Context) => {
+  const { userId, friendId, keyword } = (ctx.request.body as SearchMatchUserMessageParams);
+  try {
+    const regex = new RegExp(keyword, "i");
+    const list = await UserMessageModel
+      .aggregate([
+        {
+          $match: {
+            msgType: { $ne: MessageTypeEnum.IMAGE },
+            $or: [
+              {fromId: new Types.ObjectId(userId), toId: new Types.ObjectId(friendId)},
+              {fromId: new Types.ObjectId(friendId), toId: new Types.ObjectId(userId)},
+            ],
+          }
+        },
+        {
+          $project: {
+            matched: {
+              $cond: {
+                if: { $eq: [{ $type: "$msgContent" }, "string"] },
+                then: { $regexMatch: { input: "$msgContent", regex} },
+                else: {
+                  $cond: {
+                    if: { $and: [{ $eq: [{ $type: "$msgContent" }, "object"] }, { $ifNull: ["$msgContent.filename", false] }] },
+                    then: { $regexMatch: { input: "$msgContent.filename", regex} },
+                    else: false,
+                  }
+                },
+              }
+            },
+            fromId: 1,
+            toId: 1,
+            msgType: 1,
+            msgContent: 1,
+            time: 1,
+          }
+        },
+        { $match: { matched: true } },
+      ]);
+    const userInfo = await UsersModel.findOne({ _id: userId }, {username: 1, avatarImage: 1, nickname: 1});
+    const friendInfo = await UsersModel.findOne({ _id: friendId }, {username: 1, avatarImage: 1, nickname: 1});
+    const messageList = await Promise.all(list.map(async (message) => {
+      const { fromId, toId, ...rest } = message;
+      return {
+        ...rest,
+        userInfo: fromId === userId ? userInfo : friendInfo,
+      }
+    }))
+    ctx.body = createRes($SuccessCode, messageList, "");
+  } catch (err) {
+    console.log(err);
+    ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)
+  }
+}
+
+export const searchMatchGroupMessageList = async (ctx: Context) => {
+  const { groupId, keyword } = (ctx.request.body as SearchMatchGroupMessageParams);
+  try {
+    const regex = new RegExp(keyword, "i")
+    const list = await GroupMessageModel
+      .aggregate([
+        { 
+          $match: { 
+            groupId: new Types.ObjectId(groupId),
+            msgType: { $ne: [MessageTypeEnum.TIPS, MessageTypeEnum.IMAGE] },
+          } 
+        },
+        {  
+          $project: {  
+            // 使用$cond来检查message的类型，并应用相应的正则表达式  
+            matched: {  
+              $cond: {  
+                // 
+                if: { $eq: [{ $type: "$msgContent" }, "string"] },  
+                then: { $regexMatch: { input: "$msgContent", regex: regex } },  
+                else: {  
+                  $cond: {  
+                    if: { $and: [{ $eq: [{ $type: "$msgContent" }, "object"] }, { $ifNull: ["$msgContent.filename", false] }] },  
+                    then: { $regexMatch: { input: "$msgContent.filename", regex: regex } },  
+                    else: false  
+                  }  
+                }  
+              }  
+            },
+            fromId: 1,
+            groupId: 1,
+            msgType: 1,
+            msgContent: 1,
+            time: 1,
+          },
+        },
+        { $match: { matched: true } },
+      ])
+    const messageList = await Promise.all(list.map(async (message) => {
+      const { fromId, groupId, ...rest } = message;
+      const userInfo = await UsersModel.findOne({ _id: fromId }, {username: 1, avatarImage: 1, nickname: 1});
+      const groupInfo = await GroupsModel.findOne({ _id: groupId });
+      return {
+        ...rest,
+        userInfo,
+        groupInfo,
+      }
+    }))
+    ctx.body = createRes($SuccessCode, messageList, "");
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)

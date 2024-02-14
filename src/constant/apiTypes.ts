@@ -46,6 +46,7 @@ export interface LoadGroupUsersParams {
 export interface LoadGroupInfoParams extends LoadGroupUsersParams {}
 export interface DisbandGroupParams extends LoadGroupUsersParams {}
 export interface LoadGroupMessageListParams extends LoadGroupUsersParams {
+  pageIndex: number,
   limitTime: Date,
 }
 export interface AddGroupUsersParams extends LoadGroupUsersParams {
@@ -94,3 +95,9 @@ export interface SearchListParams {
   userId: string,
   keyword: string,
 }
+export interface SearchMatchGroupMessageParams extends SearchListParams {
+ groupId: string
+}
+export interface SearchMatchUserMessageParams extends SearchListParams {
+  friendId: string
+ }
