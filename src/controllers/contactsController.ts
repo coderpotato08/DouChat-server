@@ -3,6 +3,7 @@ import { Types } from 'mongoose';
 import { createRes } from '../models/responseModel';
 import UserContactsModel from '../models/userContactsModel';
 import UserMessageModel from '../models/userMessageModel';
+import GroupsModel from '../models/groupsModel';
 import GroupContactsModel from '../models/groupContactsModel';
 import GroupMessageModel from '../models/groupMessageModel';
 import GroupUserModel from '../models/groupUserModel';
@@ -71,17 +72,24 @@ export const createUserContact = async (ctx: Context) => {
   const { fromId, toId } = (ctx.request.body as CreateUserContactParams);
   try {
     const contactId = `${fromId}_${toId}`
-    const contact = await UserContactsModel.findOne({contactId})
-    if (!contact) {
+    let existContact = await UserContactsModel.findOne({contactId})
+    if (!existContact) {
       await UserContactsModel.create({
         contactId,
         users: [fromId, toId],
         createTime: new Date(),
       });
     }
+    const contact = await UserContactsModel
+      .findOne({contactId})
+      .populate({
+        path: 'users',
+        model: "Users",
+        select: ["nickname", "username", "avatarImage", "token"],
+      })
     ctx.body = createRes($SuccessCode, {
       status: "success",
-      contactId
+      contact
     }, "")
   } catch(err) {
     console.log(err)
@@ -92,24 +100,36 @@ export const createUserContact = async (ctx: Context) => {
 // 新建用户 => 群聊栏映射
 export const createGroupContact = async (ctx: Context) => {
   const { userId, groupId } = (ctx.request.body as CreateGroupContactParams);
-  const existContact = await GroupContactsModel.findOne({userId, groupId});
   try {
-    if(existContact) {
-      ctx.body = createRes($SuccessCode, {
-        groupId,
-        status: "success",
-      }, "")
-    } else {
-      const groupContact = await GroupContactsModel.create({
+    const existContact = await GroupContactsModel.findOne({userId, groupId});
+    if(!existContact) {
+      await GroupContactsModel.create({
         userId,
         groupId,
         createTime: new Date(),
       });
-      ctx.body = createRes($SuccessCode, {
-        groupId: groupContact._id,
-        status: "success",
-      }, "")
     }
+    const contact = await GroupContactsModel.findOne({userId, groupId}, null, { lean: true });
+    const groupInfo = await GroupsModel.findOne({_id: groupId}, null, { lean: true });
+    const usersList = await GroupUserModel
+      .find({ groupId, status: 1 }, { userId: 1 }, { lean: true })
+      .populate({
+        path: "userId",
+        model: "Users",
+        select: ["username", "avatarImage"],
+      })
+      .sort({time: 1})
+      .limit(4);
+    ctx.body = createRes($SuccessCode, {
+      contact: {
+        ...contact,
+        groupInfo: {
+          ...groupInfo,
+          usersAvaterList: usersList.map((item: any) => item.userId?.avatarImage)
+        }
+      },
+      status: "success",
+    }, "")
   } catch(err) {
     console.log(err);
     ctx.body = createRes($ErrorCode.SERVER_ERROR, null, $ErrorMessage.SERVER_ERROR)

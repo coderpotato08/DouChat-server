@@ -1,3 +1,4 @@
+import dayjs from 'dayjs';
 import { Schema, model } from 'mongoose';
 
 const { Types } = Schema;
@@ -25,7 +26,8 @@ const GroupSchema = new Schema<GroupDocument>({
   },
   createTime: { // 创建时间
     type: Date,
-    default: new Date()
+    default: Date.now,
+    get: (date: Date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
   }
 })
 

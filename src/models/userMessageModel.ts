@@ -6,7 +6,7 @@ export interface UserMessageDocument {
   toId: Schema.Types.ObjectId,
   msgType: number,
   msgContent: Schema.Types.Mixed,
-  time: Date,
+  time?: Date,
   state: number,
 }
 // 用户一对一聊天记录
@@ -27,7 +27,8 @@ const UserMessage = new Schema<UserMessageDocument>({
   },
   time: {
     type: Date,
-    default: () => new Date(),
+    default: Date.now,
+    get: (date: Date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
   },
   state: {  // 已读未读 未读0 已读1
     type: Number,

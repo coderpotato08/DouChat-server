@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import mongoose from "mongoose";
 import { v4 } from "uuid";
 
@@ -22,10 +23,12 @@ const MeetingSchema = new mongoose.Schema({
     type: Boolean,
   },
   createTime: {
-    type: Date
+    type: Date,
+    get: (date: Date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
   },
   endTime: {
-    type: Date
+    type: Date,
+    get: (date: Date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
   },
 })
 

@@ -1,3 +1,4 @@
+import dayjs from "dayjs";
 import { Schema, model } from "mongoose";
 
 const { Types } = Schema;
@@ -12,7 +13,8 @@ const FriendSchema = new Schema({
   },
   createTime: {
     type: Date,
-    default: new Date(),
+    default: Date.now,
+    get: (date: Date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
   },
 })
 

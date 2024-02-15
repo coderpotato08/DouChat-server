@@ -7,7 +7,7 @@ export interface GroupMessageDocument {
   groupId: Schema.Types.ObjectId,
   msgType: number,
   msgContent: Schema.Types.Mixed,
-  time: Date,
+  time?: Date,
 }
 const GroupMessageModel = new Schema<GroupMessageDocument>({
   fromId: {
@@ -26,7 +26,8 @@ const GroupMessageModel = new Schema<GroupMessageDocument>({
   },
   time: {
     type: Date,
-    getter: (v: Date) => dayjs(v).format("YYYY-MM-DD HH:mm:ss")
+    default: Date.now,
+    get: (date: Date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
   },
 })
 

@@ -1,12 +1,13 @@
 import { Schema, model } from 'mongoose';
 import { ApplyStatusEnum } from '../constant/commonTypes';
+import dayjs from 'dayjs';
 
 const { Types } = Schema;
 export interface FriendNotificationDocument {
   userId: Schema.Types.ObjectId,
   friendId: Schema.Types.ObjectId,
   status: ApplyStatusEnum,
-  applyTime: Date,
+  applyTime?: Date,
 }
 const FriendNotificationSchema = new Schema<FriendNotificationDocument>({
   userId: {
@@ -24,7 +25,8 @@ const FriendNotificationSchema = new Schema<FriendNotificationDocument>({
   },
   applyTime: {
     type: Date,
-    default: new Date(),
+    default: Date.now,
+    get: (date: Date) => dayjs(date).format('YYYY-MM-DD HH:mm:ss')
   },
 });
 
