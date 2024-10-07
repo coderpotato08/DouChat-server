@@ -2,6 +2,7 @@ import multer from 'koa-multer';
 import Router from 'koa-router';
 import path from 'node:path';
 import {
+  uploadAudio,
   uploadFile,
   uploadImage
 } from '../controllers/uploadController';
@@ -12,6 +13,8 @@ let storage = multer.diskStorage({
     const { mimetype } = file;
     if (mimetype.indexOf('image') > -1) {
       savePath = 'imgs' // 图片
+    } else if(mimetype.indexOf('audio') > -1) {
+      savePath = 'audios' // 图片
     } else {
       savePath = 'files'  // 其他文件
     }
@@ -38,5 +41,6 @@ const router = new Router({
 
 router.post('/image', upload.single('image'), uploadImage);
 router.post('/file', upload.single('file'), uploadFile);
+router.post('/audio', upload.single('audio'), uploadAudio);
 
 export default router

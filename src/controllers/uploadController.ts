@@ -20,3 +20,13 @@ export const uploadFile = (ctx: Context) => {
     url: file ? `http://${request.hostname}:3030/upload/files/${file.filename}` : ''
   }, "")
 }
+
+export const uploadAudio = (ctx: Context) => {
+  const { request } = ctx;
+  const { file } = (ctx.req as any);
+  ctx.body = createRes($SuccessCode, {
+    duration: 0,
+    size: file.size,
+    url: file ? `http://${request.hostname}:3030/upload/audios/${file.filename}` : ''
+  }, "")
+}

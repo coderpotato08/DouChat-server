@@ -175,7 +175,7 @@ export const inviteGroupUsers = async (ctx: Context) => {
 export const quitGroup = async (ctx: Context) => {
   const { groupId, userId } = (ctx.request.body as QuitGroupParams);
   try {
-    await GroupUserModel.deleteOne({ groupId, userId });
+    await GroupUserModel.deleteMany({ groupId, userId });
     ctx.body = createRes($SuccessCode, {status: "success"}, "")
   } catch (err) {
     console.log(err)
