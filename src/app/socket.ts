@@ -139,7 +139,7 @@ const socketRegister = (io: Server) => {
     // ----------- 会议 ----------------------
     socket.on(EventType.INVITE_MEETING, async (data) => {
       const { creator, meetingId, meetingName, userList } = data
-      const creatorInfo = await socket_findOneUser(creator)
+      const creatorInfo = await socket_findOneUser(creator);
       userList.forEach((userId: string) => {
         const toSocketId = onlineUser.get(userId);
         toSocketId && socket.to(toSocketId).emit(EventType.INVITE_MEETING, {
