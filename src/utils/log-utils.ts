@@ -1,23 +1,37 @@
-import chalk from 'chalk';
+import chalk from "chalk";
+import dayjs from "dayjs";
 
 export enum LogGenerateType {
   ONLINE_USER = "online-user",
+  ONLINE_USER_QUIT = "online-user-quit",
 }
-const logUtil = (type: LogGenerateType):Function => {
-  switch(type) {
-    case "online-user":
-      return logOnlineUserInfo
+const logUtil = (type: LogGenerateType): Function => {
+  switch (type) {
+    case LogGenerateType.ONLINE_USER:
+      return logOnlineUserInfo;
     default:
       return () => {};
   }
-}
-export const logOnlineUserInfo = (addUser: any, num: Number) => {
-  const { username, _id } = addUser;
+};
+const logTime = () => {
+  const time = dayjs().format("HH:mm:ss");
+  return `[ ${chalk.blue.bold(time)} ]`;
+};
+// 用户进入/退出聊天室app输出日志
+export const logOnlineUserInfo = (
+  user: any,
+  num: Number,
+  type: "login" | "quit"
+) => {
+  const { nickname } = user;
+  const joinColor = type === "login" ? chalk.green : chalk.yellow;
+  const numColor = type === "login" ? chalk.bgGreen : chalk.bgRed;
   console.log(
-    chalk.bgGreen.bold(`user ${username} has login`), 
+    logTime(),
+    "[" + joinColor.bold(` user ${nickname} has ${type} `) + "]",
     "online user number：",
-    chalk.bgGreen.bold(num)
-  )
-}
+    numColor.bold(num)
+  );
+};
 
 export default logUtil;
