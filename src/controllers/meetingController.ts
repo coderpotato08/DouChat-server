@@ -29,7 +29,10 @@ export const createMeeting = async (ctx: Context) => {
       createTime,
     });
     // log create meeting
-    log.time().meeting.create(creatorInfo as UserDocument, createMeetingInfo).printLog();
+    log.meeting()
+      .create(creatorInfo as UserDocument, createMeetingInfo)
+      .time(createTime)
+      .printLog();
     ctx.body = createRes(
       $SuccessCode,
       {

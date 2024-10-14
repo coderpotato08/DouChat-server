@@ -1,32 +1,33 @@
 import chalk from "chalk";
 import { UserDocument } from "../../models/usersModel";
-import Log from "../index";
+import BaseLog, { ArgTypeEnum } from "../base";
 
-export default class UserLog {
-  private logInstance;
-  constructor(logInstance: Log) {
-    this.logInstance = logInstance;
-  }
-
+export default class UserLog extends BaseLog {
   public login = (user: UserDocument, num: number) => {
     const { nickname } = user;
-    this.logInstance.consoleArgs = [
-      ...this.logInstance.consoleArgs,
-      "[" + chalk.green.bold(` 用户 ${nickname} 已登录`) + "]",
-      "当前在线用户数量：",
-      chalk.bgGreen.bold(num),
+    this.consoleArgs = [
+      ...this.consoleArgs,
+      [
+        ArgTypeEnum.TEXT,
+        "[" + chalk.green.bold(` 用户 ${nickname} 已登录 `) + "]",
+      ],
+      [ArgTypeEnum.TEXT, "当前在线用户数量："],
+      [ArgTypeEnum.TEXT, chalk.bgGreen.bold(num)],
     ];
-    return this.logInstance;
+    return this;
   };
 
   public logout = (user: UserDocument, num: number) => {
     const { nickname } = user;
-    this.logInstance.consoleArgs = [
-      ...this.logInstance.consoleArgs,
-      "[" + chalk.yellow.bold(` 用户 ${nickname} 已退出`) + "]",
-      "当前在线用户数量：",
-      chalk.bgRed.bold(num),
+    this.consoleArgs = [
+      ...this.consoleArgs,
+      [
+        ArgTypeEnum.TEXT,
+        "[" + chalk.yellow.bold(` 用户 ${nickname} 已退出 `) + "]",
+      ],
+      [ArgTypeEnum.TEXT, "当前在线用户数量："],
+      [ArgTypeEnum.TEXT, chalk.bgRed.bold(num)],
     ];
-    return this.logInstance;
+    return this;
   };
 }
