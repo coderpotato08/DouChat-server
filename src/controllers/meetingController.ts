@@ -1,10 +1,13 @@
 import MeetingModel from "../models/meetingModel";
+import UsersModel, { UserDocument } from "../models/usersModel";
 import { v4 } from "uuid";
 import { createRes } from "../models/responseModel";
 import { $SuccessCode, $ErrorCode, $ErrorMessage } from "../constant/errorData";
 import { Context } from "koa";
+import Log from "../console";
 
 export const createMeeting = async (ctx: Context) => {
+  const log = new Log();
   try {
     const { creator, meetingName, userList, isJoinedMuted, createTime } = ctx
       .request.body as any;
@@ -16,6 +19,7 @@ export const createMeeting = async (ctx: Context) => {
       );
     }
     const meetingId = v4();
+    const creatorInfo = await UsersModel.findById(creator);
     const createMeetingInfo = await MeetingModel.create({
       meetingId,
       creator,
@@ -24,6 +28,8 @@ export const createMeeting = async (ctx: Context) => {
       isJoinedMuted,
       createTime,
     });
+    // log create meeting
+    log.time().meeting.create(creatorInfo as UserDocument, createMeetingInfo).printLog();
     ctx.body = createRes(
       $SuccessCode,
       {

@@ -3,6 +3,15 @@ import mongoose from "mongoose";
 import { v4 } from "uuid";
 
 const { Schema: { Types } } = mongoose;
+export interface MeetingDocument {
+  meetingId?: string,
+  creator?: string,
+  meetingName?: string,
+  userList?: string[],
+  isJoinedMuted: boolean,
+  createTime: Date,
+  endTime: Date,
+}
 const MeetingSchema = new mongoose.Schema({
   meetingId: {
     type: String,
@@ -32,4 +41,4 @@ const MeetingSchema = new mongoose.Schema({
   },
 })
 
-export default mongoose.model("meetings", MeetingSchema)
+export default mongoose.model<MeetingDocument>("meetings", MeetingSchema)
