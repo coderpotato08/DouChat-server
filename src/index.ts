@@ -9,9 +9,12 @@ import KoaStatic from 'koa-static';
 import initMongoose from './app/dbConnect';
 import socketRegister from './app/socket';
 import routerRegister from './routes/index';
+import Log from './console';
+import { time } from 'console';
 dotenv.config();
 
 const app: Koa = new Koa();
+const log: Log = new Log();
 app.use(cors({
   credentials: true,
 }));
@@ -26,7 +29,7 @@ initMongoose(); // 连接数据库
 // webSocket connect
 const server: Server = http.createServer(app.callback());
 server.listen(3040, () => {
-  console.log('webSocket server is running on port 3040');
+  log.time().success().printLog('webSocket server is running on port 3040');
 });
 
 // 注册web socket

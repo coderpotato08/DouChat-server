@@ -1,4 +1,4 @@
-import chalk from "chalk";
+import chalk, { Chalk } from "chalk";
 import dayjs from "dayjs";
 
 export enum ArgTypeEnum {
@@ -42,10 +42,13 @@ export default class BaseLog {
     return this;
   }
 
-  public printLog = () => {
+  public printLog = (str?: Chalk | string) => {
     const args = this.consoleArgs
       .sort((a, b) => a[0] - b[0])
       .map((arg) => arg[1]);
+    if(str) {
+      args.push(str);
+    }
     console.log(...args);
   }
 }

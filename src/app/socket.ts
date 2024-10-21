@@ -1,5 +1,4 @@
 import { Server, Socket } from "socket.io";
-import logUtil, { LogGenerateType } from "../utils/log-utils";
 import {
   saveUserMessage,
   socket_CleanGroupMessageUnread,
@@ -31,7 +30,6 @@ import Log from "../console";
 const socketRegister = (io: Server) => {
   const onlineUser = new Map(); // 在线用户
   const log = new Log();
-  const logOnlineInfo = logUtil(LogGenerateType.ONLINE_USER);
 
   const groupRoomMap: Map<string, Set<string>> = new Map(); // 群聊房间映射
   const meetingMap = new Map(); // 房间映射
