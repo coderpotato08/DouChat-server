@@ -190,9 +190,9 @@ export const loadGroupContactList = async (ctx: Context) => {
       list.map(async (groupContact) => {
         const { groupId, groupInfo, ...rest } = groupContact;
         const [usersList, recentMessageList, unreadNum] = await Promise.all([
-          // 处理群头图，取前4用户的头像
+          // TODO:处理群头图，取前4用户的头像
           await GroupUserModel.find(
-            { groupId, status: 1 },
+            { groupId, state: 1 },
             { userId: 1 },
             { lean: true }
           )
@@ -259,7 +259,7 @@ export const loadGroupContactList = async (ctx: Context) => {
 export const loadGroupContact = async (ctx: Context) => {
   const { userId, groupId } = ctx.request.body as LoadGroupContactParams;
   try {
-    const list = await await GroupContactsModel.aggregate([
+    const list = await GroupContactsModel.aggregate([
       {
         $match: {
           userId: new Types.ObjectId(userId),
@@ -276,8 +276,9 @@ export const loadGroupContact = async (ctx: Context) => {
       },
     ]);
     const groupContact = list[0];
+    // TODO:处理群头图，取前4用户的头像
     const usersList = await GroupUserModel.find(
-      { groupId, status: 1 },
+      { groupId, state: 1 },
       { userId: 1 },
       { lean: true }
     )

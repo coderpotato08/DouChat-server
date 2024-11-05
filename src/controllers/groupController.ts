@@ -34,6 +34,7 @@ export const createGroup = async (ctx: Context) => {
         userId,
         groupId: groupInfo._id,
         time: new Date(),
+        state: 1,
       }));
       await GroupUserModel.create(groupUsersList);
       ctx.body = createRes(

@@ -3,6 +3,7 @@ import Log from '../console';
 
 const initMongoose = () => {
   const log = new Log();
+  mongoose.set('strictQuery', false)
   new Promise((resolve, reject) => {
     mongoose.connect(process.env.MONGOOSE_URL!)
     .then(() => {
