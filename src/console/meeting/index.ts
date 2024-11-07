@@ -5,7 +5,7 @@ import BaseLog, { ArgTypeEnum } from "../base";
 
 export default class MeetingLog extends BaseLog {
 
-  public create = (  creator: UserDocument, meetingInfo: MeetingDocument) => {
+  public create = (creator: UserDocument, meetingInfo: MeetingDocument) => {
     const { nickname } = creator;
     const { meetingName } = meetingInfo;
     this.consoleArgs = [
@@ -16,5 +16,24 @@ export default class MeetingLog extends BaseLog {
       ],
     ]
     return this;
-  }
+  };
+
+  public sdp = (
+    type: 'offer' | 'answer',
+    params: { peerId: string, meetingId: string }
+  ) => {
+    const { peerId, meetingId } = params;
+    this.consoleArgs = [
+      ...this.consoleArgs,
+      [
+        ArgTypeEnum.TEXT,
+        `[${chalk.blue.bold(type)}]`
+      ],
+      [
+        ArgTypeEnum.TEXT,
+        `meetingId: ${chalk.green.bold(meetingId)} peer connection id: ${chalk.green.bold(peerId)}`
+      ]
+    ]
+    return this;
+  };
 }

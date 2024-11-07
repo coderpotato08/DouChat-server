@@ -263,7 +263,7 @@ const socketRegister = (io: Server) => {
         }
       }
     });
-    /** 离开结束 */
+    /** 离开会议 */
     socket.on(EventType.LEAVE_MEETING, ({ meetingId, userId }) => {
       const meetingInfo = meetingMap.get(meetingId);
       if (meetingInfo) {
@@ -296,14 +296,14 @@ const socketRegister = (io: Server) => {
 
     /** WebRTC SDP交换 */
     socket.on(EventType.SEND_OFFER, (data) => {
-      const { meetingId, peerId } = data;
-      console.log(`[offer]peerId ${peerId}`);
+      const { meetingId } = data;
+      log.time().meeting().sdp('offer', data).printLog();
       socket.to(meetingId).emit(EventType.SEND_OFFER, data);
     });
     /** WebRTC SDP交换 */
     socket.on(EventType.ANSWER_OFFER, (data) => {
-      const { meetingId, peerId } = data;
-      console.log(`[answer]peerId ${peerId}`);
+      const { meetingId } = data;
+      log.time().meeting().sdp('answer', data).printLog();
       socket.to(meetingId).emit(EventType.ANSWER_OFFER, data);
     });
     /** WebRTC ICE候选 */
