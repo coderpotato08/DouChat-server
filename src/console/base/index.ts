@@ -33,6 +33,14 @@ export default class BaseLog {
     return this;
   }
 
+  public info = () => {
+    this.consoleArgs.unshift([
+      ArgTypeEnum.STATUS, 
+      `[ ${chalk.yellow.bold("INFO")} ]`
+    ]);
+    return this;
+  }
+
   public time = (time?: Date | string) => {
     const defaultTime = dayjs(time || new Date()).format("HH:mm:ss");
     this.consoleArgs.push([

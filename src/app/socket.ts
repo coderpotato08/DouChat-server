@@ -44,6 +44,7 @@ const socketRegister = (io: Server) => {
         log
           .user()
           .time()
+          .info()
           .login(userInfo, onlineUser.size + 1)
           .printLog();
       }
@@ -66,7 +67,7 @@ const socketRegister = (io: Server) => {
       const { _id: userId } = userInfo;
       if (!onlineUser.has(userId)) return;
       onlineUser.delete(userId);
-      log.user().time().logout(userInfo, onlineUser.size).printLog();
+      log.user().time().info().logout(userInfo, onlineUser.size).printLog();
     });
     /** 发送私人消息 */
     socket.on(EventType.SEND_MESSAGE, async (data) => {
@@ -297,13 +298,13 @@ const socketRegister = (io: Server) => {
     /** WebRTC SDP交换 */
     socket.on(EventType.SEND_OFFER, (data) => {
       const { meetingId } = data;
-      log.time().meeting().sdp('offer', data).printLog();
+      log.meeting().sdp("offer", data).info().time().printLog();
       socket.to(meetingId).emit(EventType.SEND_OFFER, data);
     });
     /** WebRTC SDP交换 */
     socket.on(EventType.ANSWER_OFFER, (data) => {
       const { meetingId } = data;
-      log.time().meeting().sdp('answer', data).printLog();
+      log.meeting().sdp("answer", data).info().time().printLog();
       socket.to(meetingId).emit(EventType.ANSWER_OFFER, data);
     });
     /** WebRTC ICE候选 */
