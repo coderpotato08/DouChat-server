@@ -1,5 +1,5 @@
 import { Context } from "koa";
-import GroupModel from "../models/groupsModel";
+import GroupModel, { GroupDocument } from "../models/groupsModel";
 import GroupUserModel from "../models/groupUserModel";
 import GroupNotificationModel from "../models/groupNotificationModel";
 import {
@@ -17,6 +17,25 @@ import { createRes } from "../models/responseModel";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import { ApplyStatusEnum } from "../constant/commonTypes";
 import { SocketChangeGroupStatusParams } from "../constant/socketTypes";
+import { Document, Types } from "mongoose";
+import { UserDocument } from "../models/usersModel";
+
+const getUserAvatarsList = async (groupId: Types.ObjectId) => {
+  const groupUsers = await GroupUserModel.find(
+    { groupId },
+    { userId: 1 },
+    { lean: true }
+  )
+    .populate<{ userId: UserDocument }>({
+      path: "userId",
+      model: "Users",
+      select: ["username", "avatarImage"],
+    })
+    .sort({ time: 1 })
+    .limit(4)
+    .lean();
+  return groupUsers.map((item: any) => item.userId?.avatarImage);
+};
 
 export const createGroup = async (ctx: Context) => {
   const { groupName, groupNumber, creator, users, sign } = ctx.request
@@ -34,7 +53,6 @@ export const createGroup = async (ctx: Context) => {
         userId,
         groupId: groupInfo._id,
         time: new Date(),
-        state: 1,
       }));
       await GroupUserModel.create(groupUsersList);
       ctx.body = createRes(
@@ -60,7 +78,7 @@ export const createGroup = async (ctx: Context) => {
 export const loadGroupList = async (ctx: Context) => {
   const { userId } = ctx.request.body as LoadGroupListParams;
   try {
-    const groupList = await GroupUserModel.find({ userId }, null, {
+    const currUserGroupRelations = await GroupUserModel.find({ userId }, null, {
       lean: true,
     })
       .populate({
@@ -78,29 +96,17 @@ export const loadGroupList = async (ctx: Context) => {
         },
       });
     const newGroupList = await Promise.all(
-      groupList.map(async (group) => {
+      currUserGroupRelations.map(async (relation) => {
+        const { userId, groupId, ...rest } = relation;
+        const groupInfo = groupId as unknown as Document<GroupDocument>;
         // 处理成员头像，客户端组成群聊icon
-        const { userId, groupId, ...rest } = group;
-        const usersList = await GroupUserModel.find(
-          { groupId },
-          { userId: 1 },
-          { lean: true }
-        )
-          .populate({
-            path: "userId",
-            model: "Users",
-            select: ["username", "avatarImage"],
-          })
-          .sort({ time: 1 })
-          .limit(4);
+        const usersAvaterList = await getUserAvatarsList(groupInfo._id as any);
         return {
           ...rest,
           userInfo: userId,
           groupInfo: {
-            ...groupId,
-            usersAvaterList: usersList.map(
-              (item: any) => item.userId?.avatarImage
-            ),
+            ...groupInfo,
+            usersAvaterList,
           },
         };
       })
@@ -260,17 +266,7 @@ export const searchGroupList = async (ctx: Context) => {
     const result = [];
     for (let i = 0; i < groupList.length; i++) {
       const groupInfo = groupList[i];
-      const usersAvaterList = await GroupUserModel.find(
-        { groupId: groupInfo._id.toString() },
-        { userId: 1 },
-        { lean: true }
-      )
-        .populate({
-          path: "userId",
-          model: "Users",
-          select: ["avatarImage"],
-        })
-        .limit(4);
+      const usersAvaterList = await getUserAvatarsList(groupInfo._id);
       const userList = await GroupUserModel.find(
         { groupId: groupInfo._id.toString() },
         { userId: 1 },
@@ -295,9 +291,7 @@ export const searchGroupList = async (ctx: Context) => {
       if (isInGroup && (isGroupNameMatch || isGroupUserMatch)) {
         result.push({
           ...groupList[i],
-          usersAvaterList: usersAvaterList.map(
-            (item: any) => item.userId.avatarImage
-          ),
+          usersAvaterList,
           filterUserList,
         });
       }
