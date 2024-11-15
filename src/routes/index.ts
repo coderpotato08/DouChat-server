@@ -6,6 +6,7 @@ import uploadRouter from './uploadRoute';
 import meetingRouter from './meetingRoute';
 import groupRouter from './groupRoute';
 import notificationRouter from './notificationRoute';
+import authRouter from './authRoute';
 
 export default (app: Koa) => {
   app.use(userRouter.routes()).use(userRouter.allowedMethods());
@@ -15,4 +16,5 @@ export default (app: Koa) => {
   app.use(meetingRouter.routes()).use(meetingRouter.allowedMethods());
   app.use(groupRouter.routes()).use(groupRouter.allowedMethods());
   app.use(notificationRouter.routes()).use(notificationRouter.allowedMethods());
+  app.use(authRouter.routes()).use(authRouter.allowedMethods())
 }
