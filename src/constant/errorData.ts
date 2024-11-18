@@ -25,6 +25,18 @@ export const $ErrorCode = {
     FRIENDSHIP_NOT_EXIST: 10010,
     GROUP_NUMBER_EXIST: 10011,
   },
+  Auth: {
+    github: {
+      /** client_id或client_secret不正确 */
+      incorrect_client_credentials: 10100,
+      /** Authorization callback URL 不匹配 */
+      redirect_uri_mismatch: 10101,
+      /** code不正确或已过期 */
+      bad_verification_code: 10102,
+      /** 邮箱未核实 */
+      unverified_user_email: 10103,
+    },
+  },
 };
 
 export const $ErrorMessage = {
@@ -50,5 +62,17 @@ export const $ErrorMessage = {
   },
   Relationship: {
     GROUP_NUMBER_EXIST: "该群号已被占用",
+  },
+  Auth: {
+    github: {
+      /** client_id或client_secret不正确 */
+      incorrect_client_credentials: "client_id或client_secret不正确",
+      /** Authorization callback URL 不匹配 */
+      redirect_uri_mismatch: "Authorization callback URL 不匹配",
+      /** code不正确或已过期 */
+      bad_verification_code: "会话已过期，请重新登陆！",
+      /** 邮箱未核实 */
+      unverified_user_email: "邮箱未核实，请联系管理员",
+    },
   },
 };
