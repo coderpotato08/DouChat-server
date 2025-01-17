@@ -13,9 +13,9 @@ const userCreateOrLogin = async (params: any, platform: ThirdPlatformEnum) => {
     case ThirdPlatformEnum.GITHUB:
       thirdPlatformParams = {
         thirdPlatform: platform,
-        gitAccessToken: accessToken,
+        thirdAccessToken: accessToken,
       };
-      break;
+      console.log(thirdPlatformParams);
     default:
       break;
   }
@@ -31,13 +31,13 @@ const userCreateOrLogin = async (params: any, platform: ThirdPlatformEnum) => {
       phoneNumber: "",
       ...thirdPlatformParams,
     });
-    return newUser;
+    return Promise.resolve(newUser);
   } else {
     await UserModel.updateOne(
       { _id: existUser._id },
       { ...thirdPlatformParams }
     );
-    return { ...existUser, ...thirdPlatformParams };
+    return Promise.resolve({ ...existUser, ...thirdPlatformParams });
   }
 };
 

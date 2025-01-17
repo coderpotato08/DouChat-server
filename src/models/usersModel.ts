@@ -12,7 +12,7 @@ export interface UserDocument {
   sign?: string;
   email?: string;
   token?: string;
-  gitAccessToken?: string;
+  thirdAccessToken?: string;
   thirdPlatform?: 'github' | undefined;
 }
 // 用户表
@@ -88,7 +88,7 @@ const userSchema = new Schema<UserDocument>(
     /**
      * github 第三方平台 token
      */
-    gitAccessToken: {
+    thirdAccessToken: {
       type: String,
       default: "",
     },

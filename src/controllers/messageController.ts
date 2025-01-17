@@ -110,7 +110,6 @@ export const loadGroupMessageList = async (ctx: Context) => {
       .limit(pageSize);
     ctx.body = createRes($SuccessCode, messageList, "");
   } catch (err) {
-    console.log(err);
     ctx.body = createRes(
       $ErrorCode.Common.SERVER_ERROR,
       null,
