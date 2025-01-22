@@ -5,8 +5,8 @@ export const OAuthConfig = {
     defaultPassword: 'git123456',
   },
   google: {
-    clientID: '440753354612-a16jjgi1pi7bt6iqu3u7c2d46ri38lsg.apps.googleusercontent.com',
-    clientSecret: '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',
+    clientID: 'google_client_id',
+    clientSecret: 'google_client_secret',
     defaultPassword: 'google123456',
   }
 }
