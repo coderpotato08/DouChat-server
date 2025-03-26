@@ -1,5 +1,12 @@
 import { Context } from "koa";
 import { PassThrough } from "node:stream";
+import { DsCompletionsParams } from "../constant/apiTypes";
+import OpenAI from 'openai';
+
+const openai = new OpenAI({
+  baseURL: 'https://api.deepseek.com',
+  apiKey: 'sk-e4b715999f8849808a49557a35735150'
+});
 
 export const testSSE = async (ctx: Context) => {
   const msgList = [
@@ -35,3 +42,7 @@ export const testSSE = async (ctx: Context) => {
   stream.write("[DONE]\n\n");
   ctx.body = stream;
 };
+
+export const ds_completions = async (ctx: Context) => {
+  const { prompt } = ctx.request.body as DsCompletionsParams;
+}
