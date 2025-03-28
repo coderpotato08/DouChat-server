@@ -1,11 +1,11 @@
 import { Context } from "koa";
 import { PassThrough } from "node:stream";
 import { DsCompletionsParams } from "../constant/apiTypes";
-import OpenAI from 'openai';
+import OpenAI from "openai";
 
 const openai = new OpenAI({
-  baseURL: 'https://api.deepseek.com',
-  apiKey: 'sk-e4b715999f8849808a49557a35735150'
+  baseURL: "https://api.deepseek.com",
+  apiKey: process.env.DS_API_KEY,
 });
 
 export const testSSE = async (ctx: Context) => {
@@ -44,5 +44,38 @@ export const testSSE = async (ctx: Context) => {
 };
 
 export const ds_completions = async (ctx: Context) => {
+  ctx.status = 200;
+  ctx.set({
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
   const { prompt } = ctx.request.body as DsCompletionsParams;
-}
+  try {
+    const stream = await openai.chat.completions.create({
+      messages: [
+        { role: "system", content: "You are a helpful assistant." },
+        { role: "user", content: prompt },
+      ],
+      stream: true,
+      model: "deepseek-chat",
+    });
+    for await (const chunck of stream) {
+      const content = chunck.choices[0].delta.content;
+      if (content) {
+        ctx.res.write(`data: ${JSON.stringify(content)}\n\n`);
+      }
+    }
+    ctx.res.write("data: [DONE]\n\n");
+  } catch (err: any) {
+    // 错误处理
+    ctx.res.write(
+      `event: error\ndata: ${JSON.stringify({
+        message: err.message,
+      })}\n\n`
+    );
+    ctx.res.write("data: [DONE]\n\n");
+  } finally {
+    ctx.res.end();
+  }
+};
