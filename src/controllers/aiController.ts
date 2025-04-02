@@ -5,7 +5,7 @@ import OpenAI from "openai";
 
 const openai = new OpenAI({
   baseURL: "https://api.deepseek.com",
-  apiKey: process.env.DS_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY || '',
 });
 
 export const testSSE = async (ctx: Context) => {

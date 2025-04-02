@@ -58,5 +58,6 @@ export default class BaseLog {
       args.push(str);
     }
     console.log(...args);
+    this.consoleArgs = [];
   }
 }

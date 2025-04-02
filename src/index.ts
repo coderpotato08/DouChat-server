@@ -12,6 +12,7 @@ import routerRegister from "./routes/index";
 import Log from "./console";
 dotenv.config();
 
+const ip = "0.0.0.0";
 const app: Koa = new Koa();
 const log: Log = new Log();
 app.use(
@@ -30,10 +31,18 @@ initMongoose(); // 连接数据库
 // webSocket connect
 const server: Server = http.createServer(app.callback());
 server.listen(3040, () => {
-  log.time().success().printLog("webSocket server is running on port 3040");
+  log
+    .time()
+    .success()
+    .printLog(`WebSocket server is running on http://${ip}:3040`);
+});
+app.listen(3030, ip, () => {
+  log.time().success().printLog(`server is running on http://${ip}:3030`);
 });
 // 本地支持同时启动4个客户端
-const origins = [3000, 3001, 3002, 3003].map((port) => `http://localhost:${port}`);
+const origins = [3000, 3001, 3002, 3003].map(
+  (port) => `http://localhost:${port}`
+);
 // 注册web socket
 const socketServer = new SocketServer(server, {
   cors: {
@@ -42,5 +51,3 @@ const socketServer = new SocketServer(server, {
   },
 });
 socketRegister(socketServer);
-
-app.listen(3030);

@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.ts",
   "scripts": {
-    "server": "npx ts-node-dev --respawn ./src/index.ts"
+    "build": "rm -rf dist && tsc",
+    "server": "npx ts-node-dev --respawn ./src/index.ts",
+    "pm2:start": "npm run build && pm2 start ecosystem.config.js",
+    "pm2:stop": "pm2 stop chat-room-server && pm2 delete chat-room-server && rm -rf dist"
   },
   "author": "",
   "license": "ISC",

@@ -1,10 +1,10 @@
 import mongoose from 'mongoose';
 import Log from '../console';
 
-const initMongoose = () => {
+const initMongoose = async () => {
   const log = new Log();
   mongoose.set('strictQuery', false)
-  new Promise((resolve, reject) => {
+  return new Promise((resolve, reject) => {
     mongoose.connect(process.env.MONGOOSE_URL!)
     .then(() => {
         log.time().success().printLog("mongodb connect success")
