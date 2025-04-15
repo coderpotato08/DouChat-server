@@ -3,8 +3,7 @@ module.exports = {
     {
       name: "chat-room-server",
       script: "./dist/index.js",
-      instances: "max", // 集群模式（按 CPU 核心数启动）
-      exec_mode: "cluster", // 集群模式
+      instances: 1, // 集群模式（按 CPU 核心数启动）
       autorestart: true, // 崩溃自动重启
       watch: false, // 禁用文件监听（生产环境建议关闭）
       max_memory_restart: "1G", // 内存超限自动重启
