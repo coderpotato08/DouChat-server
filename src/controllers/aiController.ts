@@ -2,10 +2,13 @@ import { Context } from "koa";
 import { PassThrough } from "node:stream";
 import { DsCompletionsParams } from "../constant/apiTypes";
 import OpenAI from "openai";
+import { initMainAgent } from "../agent/engine/main-agent";
+import { createRes } from "../models/responseModel";
+import { $SuccessCode } from "../constant/errorData";
 
 const openai = new OpenAI({
   baseURL: "https://api.deepseek.com",
-  apiKey: process.env.OPENAI_API_KEY || '',
+  apiKey: process.env.OPENAI_API_KEY || "",
 });
 
 export const testSSE = async (ctx: Context) => {
@@ -72,10 +75,32 @@ export const ds_completions = async (ctx: Context) => {
     ctx.res.write(
       `event: error\ndata: ${JSON.stringify({
         message: err.message,
-      })}\n\n`
+      })}\n\n`,
     );
     ctx.res.write("data: [DONE]\n\n");
   } finally {
     ctx.res.end();
+  }
+};
+
+export const initAgent = async (ctx: Context) => {
+  try {
+    await initMainAgent();
+    ctx.body = createRes(
+      $SuccessCode,
+      {
+        success: true,
+      },
+      "",
+    );
+  } catch (error) {
+    console.error("❗️主Agent初始化失败:", error);
+    ctx.body = createRes(
+      $SuccessCode,
+      {
+        success: false,
+      },
+      "主Agent初始化失败",
+    );
   }
 };
