@@ -1,20 +1,7 @@
+import dayjs from "dayjs";
 import { Server, Socket } from "socket.io";
-import {
-  saveUserMessage,
-  socket_CleanGroupMessageUnread,
-  socket_GroupMessageUnread,
-  socket_SaveGroupMessage,
-} from "../controllers/messageController";
-import { socket_findOneUser } from "../controllers/userController";
-import { updateMeetingEndTime } from "../controllers/meetingController";
-import {
-  addContactUnread,
-  cleanContactUnread,
-} from "../controllers/contactsController";
-import {
-  socket_ChangeGroupNotificationStatus,
-  socket_getGroups,
-} from "./../controllers/groupController";
+import log from "../console";
+import { MessageTypeEnum } from "../constant/commonTypes";
 import {
   EventType,
   SocketChangeGroupStatusParams,
@@ -23,13 +10,19 @@ import {
   SocketSendGroupMessageParams,
   SocketUserLogoutParams,
 } from "../constant/socketTypes";
-import { MessageTypeEnum } from "../constant/commonTypes";
-import dayjs from "dayjs";
-import Log from "../console";
+import { addContactUnread, cleanContactUnread } from "../controllers/contactsController";
+import { updateMeetingEndTime } from "../controllers/meetingController";
+import {
+  saveUserMessage,
+  socket_CleanGroupMessageUnread,
+  socket_GroupMessageUnread,
+  socket_SaveGroupMessage,
+} from "../controllers/messageController";
+import { socket_findOneUser } from "../controllers/userController";
+import { socket_ChangeGroupNotificationStatus, socket_getGroups } from "./../controllers/groupController";
 
 const socketRegister = (io: Server) => {
   const onlineUser = new Map(); // 在线用户
-  const log = new Log();
 
   const groupRoomMap: Map<string, Set<string>> = new Map(); // 群聊房间映射
   const meetingMap = new Map(); // 房间映射
@@ -93,82 +86,62 @@ const socketRegister = (io: Server) => {
       socket.join(groupId);
     });
     /** 发送群聊消息 */
-    socket.on(
-      EventType.SEND_GROUP_MESSAGE,
-      async (data: SocketSendGroupMessageParams) => {
-        try {
-          const { groupId, fromId } = data;
-          const msgData: any = await socket_SaveGroupMessage(data);
-          const messageId = msgData._id!.toString();
-          // 将用户消息设置为未读
-          await socket_GroupMessageUnread({
-            groupId,
-            userId: fromId,
-            messageId,
-          });
-          socket.in(groupId).emit(EventType.RECEIVE_GROUP_MESSAGE, msgData);
-          socket
-            .in(groupId)
-            .emit(EventType.GROUP_MESSAGE_UNREAD, { groupId, messageId });
-        } catch (err) {
-          console.log(err);
-        }
+    socket.on(EventType.SEND_GROUP_MESSAGE, async (data: SocketSendGroupMessageParams) => {
+      try {
+        const { groupId, fromId } = data;
+        const msgData: any = await socket_SaveGroupMessage(data);
+        const messageId = msgData._id!.toString();
+        // 将用户消息设置为未读
+        await socket_GroupMessageUnread({
+          groupId,
+          userId: fromId,
+          messageId,
+        });
+        socket.in(groupId).emit(EventType.RECEIVE_GROUP_MESSAGE, msgData);
+        socket.in(groupId).emit(EventType.GROUP_MESSAGE_UNREAD, { groupId, messageId });
+      } catch (err) {
+        console.log(err);
       }
-    );
+    });
     /** 群聊消息已读 */
-    socket.on(
-      EventType.READ_GROUP_MESSAGE,
-      async (data: SocketCleanGroupMessageUnreadParams) => {
-        try {
-          await socket_CleanGroupMessageUnread(data);
-        } catch (err) {
-          console.log(err);
-        }
+    socket.on(EventType.READ_GROUP_MESSAGE, async (data: SocketCleanGroupMessageUnreadParams) => {
+      try {
+        await socket_CleanGroupMessageUnread(data);
+      } catch (err) {
+        console.log(err);
       }
-    );
+    });
     /** 接受群聊邀请 */
-    socket.on(
-      EventType.ACCEPT_GROUP_INVITE,
-      async (data: SocketChangeGroupStatusParams) => {
-        try {
-          const groupNote: any = await socket_ChangeGroupNotificationStatus(
-            data
-          );
-          const { userId: userInfo = {}, groupId } = groupNote;
-          const tipMessage = await socket_SaveGroupMessage({
-            groupId,
-            msgType: MessageTypeEnum.TIPS,
-            msgContent: `用户“${userInfo.nickname}”加入了群聊`,
-            time: dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss"),
-          });
-          socket
-            .in(groupId.toString())
-            .emit(EventType.NEW_GROUP_USER_JOIN, tipMessage);
-        } catch (err) {
-          console.log(err);
-        }
+    socket.on(EventType.ACCEPT_GROUP_INVITE, async (data: SocketChangeGroupStatusParams) => {
+      try {
+        const groupNote: any = await socket_ChangeGroupNotificationStatus(data);
+        const { userId: userInfo = {}, groupId } = groupNote;
+        const tipMessage = await socket_SaveGroupMessage({
+          groupId,
+          msgType: MessageTypeEnum.TIPS,
+          msgContent: `用户“${userInfo.nickname}”加入了群聊`,
+          time: dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss"),
+        });
+        socket.in(groupId.toString()).emit(EventType.NEW_GROUP_USER_JOIN, tipMessage);
+      } catch (err) {
+        console.log(err);
       }
-    );
+    });
     /** 用户退出群聊 */
-    socket.on(
-      EventType.GROUP_USER_QUIT,
-      async (data: SocketGroupUserQuitParams) => {
-        try {
-          const { userInfo, groupId } = data;
-          const tipMessage = await socket_SaveGroupMessage({
-            groupId,
-            msgType: MessageTypeEnum.TIPS,
-            msgContent: `用户“${userInfo.nickname}”退出了群聊`,
-            time: dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss"),
-          });
-          socket
-            .in(groupId.toString())
-            .emit(EventType.GROUP_USER_QUIT, tipMessage);
-        } catch (err) {
-          console.log(err);
-        }
+    socket.on(EventType.GROUP_USER_QUIT, async (data: SocketGroupUserQuitParams) => {
+      try {
+        const { userInfo, groupId } = data;
+        const tipMessage = await socket_SaveGroupMessage({
+          groupId,
+          msgType: MessageTypeEnum.TIPS,
+          msgContent: `用户“${userInfo.nickname}”退出了群聊`,
+          time: dayjs(new Date()).format("YYYY-MM-DD HH:mm:ss"),
+        });
+        socket.in(groupId.toString()).emit(EventType.GROUP_USER_QUIT, tipMessage);
+      } catch (err) {
+        console.log(err);
       }
-    );
+    });
 
     // ----------- 会议 ----------------------
     /** 邀请用户参加会议 */
@@ -191,46 +164,43 @@ const socketRegister = (io: Server) => {
       socket.in(meetingId).emit(EventType.REJECT_INVITE, { userId });
     });
     /** 创建会议 */
-    socket.on(
-      EventType.CREATE_MEETING,
-      ({ meetingId, meetingInfo, userInfo }) => {
-        const { creator, userList, isJoinedMuted } = meetingInfo;
-        const deviceStatus = {
-          cameraEnable: false,
-          audioEnable: !isJoinedMuted,
-        };
-        const inviteUserList = userList.map((user: any) => ({
-          ...user,
+    socket.on(EventType.CREATE_MEETING, ({ meetingId, meetingInfo, userInfo }) => {
+      const { creator, userList, isJoinedMuted } = meetingInfo;
+      const deviceStatus = {
+        cameraEnable: false,
+        audioEnable: !isJoinedMuted,
+      };
+      const inviteUserList = userList.map((user: any) => ({
+        ...user,
+        ...deviceStatus,
+        type: "participant",
+        status: 0, // 0呼叫中 1已拒绝 2已入会 3已退出
+      }));
+      const allUserList = [
+        {
+          ...creator,
           ...deviceStatus,
-          type: "participant",
-          status: 0, // 0呼叫中 1已拒绝 2已入会 3已退出
-        }));
-        const allUserList = [
-          {
-            ...creator,
-            ...deviceStatus,
-            type: "creator",
-            status: 2,
-            socketId: socket.id,
-          }, // 0呼叫中 1已拒绝 2已入会 3已退出
-          ...inviteUserList,
-        ];
-        if (!meetingMap.get(meetingId)) {
-          meetingMap.set(meetingId, {
-            userList: allUserList,
-          });
-        }
-        const params = {
-          users: meetingMap.get(meetingId).userList,
+          type: "creator",
+          status: 2,
           socketId: socket.id,
-          userInfo,
-        };
-        socketMap.set(userInfo._id, socket);
-        socket.join(meetingId); // 入会
-        socket.emit(EventType.JOINED_MEETING, params); // 通知本人入会成功
-        socket.to(meetingId).emit(EventType.JOINED_MEETING, params); // 通知其他成员入会成功
+        }, // 0呼叫中 1已拒绝 2已入会 3已退出
+        ...inviteUserList,
+      ];
+      if (!meetingMap.get(meetingId)) {
+        meetingMap.set(meetingId, {
+          userList: allUserList,
+        });
       }
-    );
+      const params = {
+        users: meetingMap.get(meetingId).userList,
+        socketId: socket.id,
+        userInfo,
+      };
+      socketMap.set(userInfo._id, socket);
+      socket.join(meetingId); // 入会
+      socket.emit(EventType.JOINED_MEETING, params); // 通知本人入会成功
+      socket.to(meetingId).emit(EventType.JOINED_MEETING, params); // 通知其他成员入会成功
+    });
     /** 用户加入会议 */
     socket.on(EventType.JOIN_MEETING, ({ meetingId, userInfo }) => {
       if (meetingMap.get(meetingId)) {

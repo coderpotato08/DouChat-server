@@ -1,22 +1,16 @@
-import MeetingModel from "../models/meetingModel";
-import UsersModel, { UserDocument } from "../models/usersModel";
-import { v4 } from "uuid";
-import { createRes } from "../models/responseModel";
-import { $SuccessCode, $ErrorCode, $ErrorMessage } from "../constant/errorData";
 import { Context } from "koa";
-import Log from "../console";
+import { v4 } from "uuid";
+import log from "../console";
+import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
+import MeetingModel from "../models/meetingModel";
+import { createRes } from "../models/responseModel";
+import UsersModel, { UserDocument } from "../models/usersModel";
 
 export const createMeeting = async (ctx: Context) => {
-  const log = new Log();
   try {
-    const { creator, meetingName, userList, isJoinedMuted, createTime } = ctx
-      .request.body as any;
+    const { creator, meetingName, userList, isJoinedMuted, createTime } = ctx.request.body as any;
     if (!userList || userList.length <= 0) {
-      ctx.body = createRes(
-        $ErrorCode.Meeting.USER_LIST_EMPTY,
-        null,
-        $ErrorMessage.Meeting.USER_LIST_EMPTY
-      );
+      ctx.body = createRes($ErrorCode.Meeting.USER_LIST_EMPTY, null, $ErrorMessage.Meeting.USER_LIST_EMPTY);
     }
     const meetingId = v4();
     const creatorInfo = await UsersModel.findById(creator);
@@ -29,7 +23,8 @@ export const createMeeting = async (ctx: Context) => {
       createTime,
     });
     // log create meeting
-    log.meeting()
+    log
+      .meeting()
       .create(creatorInfo as UserDocument, createMeetingInfo)
       .time(createTime)
       .printLog();
@@ -42,11 +37,7 @@ export const createMeeting = async (ctx: Context) => {
       ""
     );
   } catch (err) {
-    ctx.body = createRes(
-      $ErrorCode.Common.SERVER_ERROR,
-      null,
-      $ErrorMessage.Common.SERVER_ERROR
-    );
+    ctx.body = createRes($ErrorCode.Common.SERVER_ERROR, null, $ErrorMessage.Common.SERVER_ERROR);
   }
 };
 
@@ -66,18 +57,11 @@ export const loadMeetingInfo = async (ctx: Context) => {
       });
     ctx.body = createRes($SuccessCode, meetingInfo || null, "");
   } catch (err) {
-    ctx.body = createRes(
-      $ErrorCode.Common.SERVER_ERROR,
-      null,
-      $ErrorMessage.Common.SERVER_ERROR
-    );
+    ctx.body = createRes($ErrorCode.Common.SERVER_ERROR, null, $ErrorMessage.Common.SERVER_ERROR);
   }
 };
 
 export const updateMeetingEndTime = async (meetingId: string) => {
-  const res = await MeetingModel.updateOne(
-    { meetingId },
-    { endTime: new Date() }
-  );
+  const res = await MeetingModel.updateOne({ meetingId }, { endTime: new Date() });
   return !!res.modifiedCount;
 };
