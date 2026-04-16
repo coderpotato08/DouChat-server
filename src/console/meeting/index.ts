@@ -8,6 +8,7 @@ export default class MeetingLog extends BaseLog {
     super(consoleArgs);
   }
 
+  /** 会议域方法只负责组织业务文本，不直接操作共享状态。 */
   public create = (creator: UserDocument, meetingInfo: MeetingDocument) => {
     const { nickname } = creator;
     const { meetingName } = meetingInfo;
@@ -17,6 +18,7 @@ export default class MeetingLog extends BaseLog {
     ]);
   };
 
+  /** 会议日志继续沿用当前链快照，支持与基础状态标签自由组合。 */
   public sdp = (
     type: "offer" | "answer",
     params: {

@@ -3,9 +3,8 @@ import MeetingLog from "./meeting";
 import UserLog from "./user";
 
 /**
- * 控制台日志工具链
- * 支持链式调用，输出时间和基本状态
- *
+ * 共享日志入口本身不持有可变状态，只负责派生新的日志链。
+ * 因此应用层可以只初始化一次并全局复用。
  */
 export class Log extends BaseLog {
   public user: () => UserLog;
@@ -13,11 +12,13 @@ export class Log extends BaseLog {
 
   constructor(consoleArgs: ConsoleArg[] = []) {
     super(consoleArgs);
+    // 领域日志复用当前链快照继续派生，避免与其他链共享内部状态。
     this.user = () => new UserLog(this.consoleArgs);
     this.meeting = () => new MeetingLog(this.consoleArgs);
   }
 }
 
+// 默认导出共享入口，业务代码直接从这里开始一条新链即可。
 const log = new Log();
 
 export default log;

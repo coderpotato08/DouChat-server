@@ -7,6 +7,7 @@ export default class UserLog extends BaseLog {
     super(consoleArgs);
   }
 
+  /** 用户域日志只追加自己的正文片段，链状态仍由 BaseLog 统一管理。 */
   public login = (user: UserDocument, num: number) => {
     const { nickname } = user;
     return this.appendArgs(
@@ -16,6 +17,7 @@ export default class UserLog extends BaseLog {
     );
   };
 
+  /** 用户域链与基础链隔离，可安全复用共享 logger 入口。 */
   public logout = (user: UserDocument, num: number) => {
     const { nickname } = user;
     return this.appendArgs(
