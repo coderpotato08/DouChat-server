@@ -52,7 +52,7 @@ export default class BaseLog {
   };
 
   public info = () => {
-    return this.prependArgs([ArgTypeEnum.STATUS, `[ ${chalk.yellow.bold("INFO")} ]`]);
+    return this.prependArgs([ArgTypeEnum.STATUS, `[ ${chalk.blue.bold("INFO")} ]`]);
   };
 
   public time = (time?: Date | string) => {

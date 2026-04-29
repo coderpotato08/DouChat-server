@@ -46,7 +46,6 @@ export class ToolManager {
   public async executeToolHandler(
     toolName: string,
     rawArgs: string | undefined,
-    execute: (args: Record<string, any>) => Promise<string>,
   ): Promise<ToolExecutionResponse> {
     const tool = this.tools.get(toolName);
     const startTime = Date.now();
@@ -60,7 +59,7 @@ export class ToolManager {
       });
     }
     try {
-      const toolResult = await execute(rawArgs ? JSON.parse(rawArgs) : {});
+      const toolResult = await tool.execute(rawArgs ? JSON.parse(rawArgs) : {});
       return Promise.resolve({
         toolName,
         success: true,
@@ -86,7 +85,7 @@ export class ToolManager {
       name: tool.name,
       description: tool.description,
       parameters: tool.parameters,
-      execute: async (args) => await this.executeToolHandler(tool.name, JSON.stringify(args), tool.execute),
+      execute: tool.execute,
     });
   }
 

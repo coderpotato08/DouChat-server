@@ -1,22 +1,6 @@
-import OpenAI from 'openai';
+import { initMainAgent } from "../src/agent/engine/main-agent";
 
-const openai = new OpenAI({
-  baseURL: 'https://api.deepseek.com',
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// 初始化agent
+const agent = initMainAgent();
 
-async function main() {
-  const stream = await openai.chat.completions.create(
-    {
-      messages: [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: "css如何使文字纵向排列" },
-      ],
-      stream: true,
-      model: "deepseek-chat",
-    });
-
-  console.log(stream);
-}
-
-main();
+agent.sendStreamMessage('afawfafwawaaf', '请帮我读取当前目录下的README.md文件内容，并总结描述');
