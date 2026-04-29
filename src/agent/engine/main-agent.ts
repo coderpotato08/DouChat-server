@@ -1,8 +1,9 @@
 import OpenAI from "openai";
 import { ChatCompletionFunctionTool, ChatCompletionToolChoiceOption } from "openai/resources";
 import { registerBaseTools } from "../tools/baseTools";
-import { ChatCompletionBaseParams, EnvConfig, EventHandler, SYSTEM_PROMPT } from "../types/agent";
+import { ChatCompletionBaseParams, EnvConfig, EventHandler, FINAL_MESSAGE, SYSTEM_PROMPT } from "../types/agent";
 import { ToolManager } from "./tool-manager";
+import client from "openai";
 
 let mainAgentInstance: MainAgent | null = null;
 
@@ -59,7 +60,8 @@ export class MainAgent {
     };
   }
 
-  public async sendStreamMessage(userId: string, message: string, streamHandler?: EventHandler) {
+  public async sendThinkingStreamMessage(userId: string, message: string, streamHandler?: EventHandler) {
+    let reachedNoToolRound = false;
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
@@ -74,7 +76,8 @@ export class MainAgent {
       role: "user",
       content: message,
     });
-    // agent looping 
+    // agent looping
+    streamHandler?.onThinkingStart();
     for (let round = 0; round < maxToolRounds; round++) {
       // 调用 openai api
       try {
@@ -88,23 +91,51 @@ export class MainAgent {
         const toolCalls = message?.tool_calls || [];
         messageList.push(message);
         if (finish_reason === "stop") {
+          reachedNoToolRound = true;
           break;
         }
         for (const tool of toolCalls) {
           if (tool.type !== "function") {
             continue;
           }
+          streamHandler?.onToolUseStart(tool.function.name, tool.id, tool.function.arguments);
           const toolResult = await this.toolManager.executeToolHandler(
             tool.function.name,
             tool.function.arguments
           );
+          const outputStr = JSON.stringify(toolResult.output);
+          streamHandler?.onToolUseDone(tool.function.name, tool.id, outputStr);
           messageList.push({
             role: "tool",
             tool_call_id: tool.id,
-            content: JSON.stringify(toolResult.output),
+            content: outputStr,
           });
         }
-      } catch (error) {}
+      } catch (error) {
+        streamHandler?.onError(error as Error);
+        throw error;
+      }
+    }
+
+    if (!reachedNoToolRound) {
+      // 达到最大工具调用轮次
+    }
+
+    messageList.push({
+      role: "user",
+      content: FINAL_MESSAGE,
+    });
+
+    let stream: Awaited<ReturnType<typeof this.agentClient.chat.completions.create>>;
+    try {
+      stream = await this.agentClient.chat.completions.create({
+        ...this.buildCompletionOptions(),
+        stream: true,
+        messages: messageList,
+      });
+    } catch (error) {
+      streamHandler?.onError(error as Error);
+      throw error;
     }
   }
 }
