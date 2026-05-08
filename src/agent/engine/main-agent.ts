@@ -28,7 +28,7 @@ export class MainAgent {
     // };
     const env = {
       baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      apiKey: "sk-f13366e145504bcb84b2df2c256c73a7",
+      apiKey: "your_api_key",
       model: "qwen3.5-35b-a3b",
     };
 
@@ -62,6 +62,7 @@ export class MainAgent {
 
   public async sendThinkingStreamMessage(userId: string, message: string, streamHandler?: EventHandler) {
     let reachedNoToolRound = false;
+    streamHandler?.onContentStart();
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
@@ -120,6 +121,7 @@ export class MainAgent {
     if (!reachedNoToolRound) {
       // 达到最大工具调用轮次
     }
+    streamHandler?.onThinkingDone();
 
     messageList.push({
       role: "user",
