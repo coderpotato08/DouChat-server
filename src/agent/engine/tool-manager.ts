@@ -1,6 +1,7 @@
-import z from "zod";
-import { ToolExecutionResponse } from "../types/tools";
 import { ChatCompletionFunctionTool } from "openai/resources";
+import z from "zod";
+import { SystemLogger } from "../../console";
+import { ToolExecutionResponse } from "../types/tools";
 
 export const DEFAULT_ALLOW_TOOLS = [
   "get_message_records",
@@ -29,7 +30,7 @@ type InnerRegisteredTool = RegisteredToolConfig & {
   execute: (args: Record<string, any>) => Promise<ToolExecutionResponse>;
 };
 function toFunctionParameters(
-  parameters: Record<string, z.ZodType>,
+  parameters: Record<string, z.ZodType>
 ): ChatCompletionFunctionTool["function"]["parameters"] {
   return z
     .object(parameters as z.ZodRawShape)
@@ -44,8 +45,9 @@ export class ToolManager {
   }
 
   public async executeToolHandler(
+    toolCallId: string,
     toolName: string,
-    rawArgs: string | undefined,
+    rawArgs: string | undefined
   ): Promise<ToolExecutionResponse> {
     const tool = this.tools.get(toolName);
     const startTime = Date.now();
@@ -58,22 +60,38 @@ export class ToolManager {
         executionTime: 0,
       });
     }
+
     try {
+      SystemLogger.agent().toolStart({
+        toolName,
+        toolCallId,
+        input: rawArgs,
+      }).printLog();
       const toolResult = await tool.execute(rawArgs ? JSON.parse(rawArgs) : {});
-      return Promise.resolve({
+      const executionTime = Date.now() - startTime;
+      const successResult = {
         toolName,
         success: true,
         output: toolResult,
-        executionTime: Date.now() - startTime, // 可以根据实际情况计算执行时间
-      });
+        executionTime,
+      };
+      SystemLogger.agent().toolDone({
+        toolCallId,
+        ...successResult,
+      }).printLog();
+      return Promise.resolve(successResult);
     } catch (error: any) {
-      console.log(`❗️工具 "${toolName}" 执行失败:`, error);
-      return Promise.resolve({
+      const errorResult = {
         toolName,
         success: false,
         error: `Tool execution failed: ${error.message}`,
         executionTime: 0,
-      });
+      };
+      SystemLogger.agent().toolDone({
+        toolCallId,
+        ...errorResult,
+      }).printLog();
+      return Promise.resolve(errorResult);
     }
   }
 

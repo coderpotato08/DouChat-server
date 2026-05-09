@@ -1,12 +1,12 @@
 import Router from "koa-router";
-import { ds_completions, initAgent, testSSE } from "../controllers/aiController";
+import { agentCompletion, initAgent, testSSE } from "../controllers/aiController";
 
 const router = new Router({
   prefix: '/ai',
 });
 
 router.get('/test-sse', testSSE);
-router.post('/completions', ds_completions);
-router.post('/init', initAgent);
+router.post('/agent/init', initAgent);
+router.post('/agent/completion', agentCompletion);
 
 export default router;

@@ -5,11 +5,6 @@ export type AgentSessionStartPayload = {
   message: string;
 };
 
-export type AgentRoundPayload = {
-  round: number;
-  messageCount: number;
-};
-
 export type AgentResponsePayload = {
   round: number;
   finishReason: string | null | undefined;
@@ -18,14 +13,12 @@ export type AgentResponsePayload = {
 };
 
 export type AgentToolStartPayload = {
-  round: number;
   toolName: string;
   toolCallId?: string;
   input?: string;
 };
 
 export type AgentToolDonePayload = {
-  round: number;
   toolName: string;
   toolCallId?: string;
   success: boolean;

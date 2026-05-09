@@ -40,7 +40,7 @@ export default class BaseLog {
   }
 
   public error = () => {
-    return this.prependArgs([ArgTypeEnum.STATUS, `[ ${chalk.red.bold("[ ERROR ]")} ]`]);
+    return this.prependArgs([ArgTypeEnum.STATUS, `[ ${chalk.red.bold("ERROR")} ]`]);
   };
 
   public success = () => {
@@ -52,7 +52,7 @@ export default class BaseLog {
   };
 
   public info = () => {
-    return this.prependArgs([ArgTypeEnum.STATUS, `[ ${chalk.blue.bold("INFO")} ]`]);
+    return this.prependArgs([ArgTypeEnum.STATUS, `[ ${chalk.hex("#00BFFF").bold("INFO")} ]`]);
   };
 
   public time = (time?: Date | string) => {

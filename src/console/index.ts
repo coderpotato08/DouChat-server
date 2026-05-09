@@ -21,7 +21,5 @@ export class Log extends BaseLog {
   }
 }
 
-// 默认导出共享入口，业务代码直接从这里开始一条新链即可。
-const log = new Log();
-
-export default log;
+// 命名导出共享入口，业务代码直接从这里开始一条新链即可。
+export const SystemLogger = new Log();

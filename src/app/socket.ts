@@ -1,6 +1,6 @@
 import dayjs from "dayjs";
 import { Server, Socket } from "socket.io";
-import log from "../console";
+import { SystemLogger } from "../console";
 import { MessageTypeEnum } from "../constant/commonTypes";
 import {
   EventType,
@@ -34,8 +34,7 @@ const socketRegister = (io: Server) => {
     socket.on(EventType.ADD_USER, async (userInfo) => {
       const { _id } = userInfo;
       if (!onlineUser.has(_id)) {
-        log
-          .user()
+        SystemLogger.user()
           .time()
           .info()
           .login(userInfo, onlineUser.size + 1)
@@ -60,7 +59,7 @@ const socketRegister = (io: Server) => {
       const { _id: userId } = userInfo;
       if (!onlineUser.has(userId)) return;
       onlineUser.delete(userId);
-      log.user().time().info().logout(userInfo, onlineUser.size).printLog();
+      SystemLogger.user().time().info().logout(userInfo, onlineUser.size).printLog();
     });
     /** 发送私人消息 */
     socket.on(EventType.SEND_MESSAGE, async (data) => {
@@ -268,13 +267,13 @@ const socketRegister = (io: Server) => {
     /** WebRTC SDP交换 */
     socket.on(EventType.SEND_OFFER, (data) => {
       const { meetingId } = data;
-      log.meeting().sdp("offer", data).info().time().printLog();
+      SystemLogger.meeting().sdp("offer", data).info().time().printLog();
       socket.to(meetingId).emit(EventType.SEND_OFFER, data);
     });
     /** WebRTC SDP交换 */
     socket.on(EventType.ANSWER_OFFER, (data) => {
       const { meetingId } = data;
-      log.meeting().sdp("answer", data).info().time().printLog();
+      SystemLogger.meeting().sdp("answer", data).info().time().printLog();
       socket.to(meetingId).emit(EventType.ANSWER_OFFER, data);
     });
     /** WebRTC ICE候选 */

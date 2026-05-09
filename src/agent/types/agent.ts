@@ -11,15 +11,15 @@ export type OpenAiEnvConfig = {
 };
 
 export type EventHandler = {
-  onContentStart: () => Promise<void>;
-  onContentDelta: (delta: string) => Promise<void>;
-  onContentDone: () => Promise<void>;
-  onThinkingStart: () => Promise<void>;
-  onThinkingDelta: (delta: string) => Promise<void>;
-  onThinkingDone: () => Promise<void>;
-  onToolUseStart: (toolName: string, toolUseId: string, input?: string) => Promise<void>;
-  onToolUseDone: (toolName: string, toolUseId: string, output: string) => Promise<void>;
-  onError: (error: Error) => Promise<void>;
+  onContentStart?: () => Promise<void>;
+  onContentDelta?: (delta: string) => Promise<void>;
+  onContentDone?: () => Promise<void>;
+  onThinkingStart?: () => Promise<void>;
+  onThinkingDelta?: (delta: string) => Promise<void>;
+  onThinkingDone?: () => Promise<void>;
+  onToolUseStart?: (toolName: string, toolUseId: string, input?: string) => Promise<void>;
+  onToolUseDone?: (toolName: string, toolUseId: string, output: string) => Promise<void>;
+  onError?: (error: Error) => Promise<void>;
 }
 
 export type ChatCompletionBaseParams = Omit<OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming, "messages">

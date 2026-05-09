@@ -37,6 +37,9 @@ export const $ErrorCode = {
       unverified_user_email: 10103,
     },
   },
+  Agent: {
+    AGENT_INIT_FAILURE: 10104,
+  }
 };
 
 export const $ErrorMessage = {
@@ -75,4 +78,7 @@ export const $ErrorMessage = {
       unverified_user_email: "邮箱未核实，请联系管理员",
     },
   },
+  Agent: {
+    
+  }
 };

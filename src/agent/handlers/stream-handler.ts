@@ -2,7 +2,7 @@ import { EventHandler } from "../types/agent";
 
 export class StreamHandler {
   private eventHandler: EventHandler;
-  constructor(eventHandler: EventHandler) {
+  constructor(eventHandler: EventHandler = {}) {
     this.eventHandler = eventHandler;
   }
 
@@ -35,6 +35,6 @@ export class StreamHandler {
       onError: async (error: Error) => {
         write("data: " + JSON.stringify({ type: "error", error: error.message }) + "\n\n");
       },
-    }
+    };
   }
 }

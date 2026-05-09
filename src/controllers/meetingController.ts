@@ -1,6 +1,6 @@
 import { Context } from "koa";
 import { v4 } from "uuid";
-import log from "../console";
+import { SystemLogger } from "../console";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import MeetingModel from "../models/meetingModel";
 import { createRes } from "../models/responseModel";
@@ -23,8 +23,7 @@ export const createMeeting = async (ctx: Context) => {
       createTime,
     });
     // log create meeting
-    log
-      .meeting()
+    SystemLogger.meeting()
       .create(creatorInfo as UserDocument, createMeetingInfo)
       .time(createTime)
       .printLog();

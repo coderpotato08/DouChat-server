@@ -1,15 +1,33 @@
 import { Context } from "koa";
-import { PassThrough } from "node:stream";
-import { DsCompletionsParams } from "../constant/apiTypes";
-import OpenAI from "openai";
-import { initMainAgent } from "../agent/engine/main-agent";
+import { getMainAgent, initMainAgent } from "../agent/engine/main-agent";
+import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import { createRes } from "../models/responseModel";
-import { $SuccessCode } from "../constant/errorData";
+import { createSSESession, writeSSEData } from "../utils/sse-utils";
 
-const openai = new OpenAI({
-  baseURL: "https://api.deepseek.com",
-  apiKey: process.env.OPENAI_API_KEY || "",
-});
+type AgentCompletionBody = {
+  prompt?: unknown;
+  userId?: unknown;
+};
+
+const parseAgentCompletionBody = (ctx: Context) => {
+  const { prompt, userId } = (ctx.request.body || {}) as AgentCompletionBody;
+
+  if (typeof prompt !== "string" || typeof userId !== "string") {
+    return null;
+  }
+
+  const trimmedPrompt = prompt.trim();
+  const trimmedUserId = userId.trim();
+
+  if (!trimmedPrompt || !trimmedUserId) {
+    return null;
+  }
+
+  return {
+    prompt: trimmedPrompt,
+    userId: trimmedUserId,
+  };
+};
 
 export const testSSE = async (ctx: Context) => {
   const msgList = [
@@ -23,64 +41,21 @@ export const testSSE = async (ctx: Context) => {
     "请注意，这些颜色代码仅在支持ANSI转义序列的终端中有效。如果你在不支持这些颜色的终端（如某些旧版本的Windows命令提示符）上运行脚本，你可能看不到预期的颜色效果。",
     "另外，如果你的脚本需要在不同的环境中运行，并且你不确定终端是否支持颜色，你可能需要添加一些检查来确保颜色变量只在支持它们的终端中使用。",
   ];
-  const stream = new PassThrough();
-
-  ctx.set({
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
-  });
-  ctx.status = 200;
+  const { stream, close } = createSSESession(ctx);
 
   let index = 0;
   let timer = setInterval(() => {
     if (index < msgList.length) {
-      stream.write(`data: ${msgList[index]}\n\n`);
+      writeSSEData(stream, msgList[index]);
       index++;
     } else {
       clearInterval(timer);
-      stream.end();
+      close();
     }
   }, 1000);
-  stream.write("[DONE]\n\n");
-  ctx.body = stream;
-};
-
-export const ds_completions = async (ctx: Context) => {
-  ctx.status = 200;
-  ctx.set({
-    "Content-Type": "text/event-stream",
-    "Cache-Control": "no-cache",
-    Connection: "keep-alive",
+  ctx.req.on("close", () => {
+    clearInterval(timer);
   });
-  const { prompt } = ctx.request.body as DsCompletionsParams;
-  try {
-    const stream = await openai.chat.completions.create({
-      messages: [
-        { role: "system", content: "You are a helpful assistant." },
-        { role: "user", content: prompt },
-      ],
-      stream: true,
-      model: "deepseek-chat",
-    });
-    for await (const chunck of stream) {
-      const content = chunck.choices[0].delta.content;
-      if (content) {
-        ctx.res.write(`data: ${JSON.stringify(content)}\n\n`);
-      }
-    }
-    ctx.res.write("data: [DONE]\n\n");
-  } catch (err: any) {
-    // 错误处理
-    ctx.res.write(
-      `event: error\ndata: ${JSON.stringify({
-        message: err.message,
-      })}\n\n`,
-    );
-    ctx.res.write("data: [DONE]\n\n");
-  } finally {
-    ctx.res.end();
-  }
 };
 
 export const initAgent = async (ctx: Context) => {
@@ -91,16 +66,57 @@ export const initAgent = async (ctx: Context) => {
       {
         success: true,
       },
-      "",
+      ""
     );
   } catch (error) {
     console.error("❗️主Agent初始化失败:", error);
     ctx.body = createRes(
-      $SuccessCode,
+      $ErrorCode.Agent.AGENT_INIT_FAILURE,
       {
         success: false,
       },
-      "主Agent初始化失败",
+      $ErrorMessage.Common.SERVER_ERROR
     );
   }
+};
+
+export const agentCompletion = async (ctx: Context) => {
+  const sseSession = createSSESession(ctx);
+  const requestBody = parseAgentCompletionBody(ctx);
+
+  if (!requestBody) {
+    sseSession.sendError("prompt和userId不能为空");
+    sseSession.close();
+    return;
+  }
+
+  let agent;
+  try {
+    agent = getMainAgent();
+  } catch (error) {
+    console.error("❗️主Agent尚未初始化:", error);
+    sseSession.sendError("MainAgent has not been initialized. Please call initMainAgent() first.");
+    sseSession.close();
+    return;
+  }
+
+  const eventHandler = agent.createHttpStreamHandler((chunk) => {
+    if (sseSession.isClosed()) {
+      return;
+    }
+    sseSession.stream.write(chunk);
+  });
+
+  void agent
+    .sendThinkingStreamMessage(requestBody.userId, requestBody.prompt, eventHandler)
+    .then(() => {
+      sseSession.close();
+    })
+    .catch((error) => {
+      console.error("Agent处理消息时发生错误:", error);
+      sseSession.sendError(
+        error instanceof Error && error.message ? error.message : $ErrorMessage.Common.SERVER_ERROR
+      );
+      sseSession.close();
+    });
 };

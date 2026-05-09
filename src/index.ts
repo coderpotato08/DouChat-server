@@ -8,7 +8,7 @@ import path from "path";
 import { Server as SocketServer } from "socket.io";
 import initMongoose from "./app/dbConnect";
 import socketRegister from "./app/socket";
-import log from "./console";
+import { SystemLogger } from "./console";
 import routerRegister from "./routes/index";
 dotenv.config();
 
@@ -30,10 +30,10 @@ initMongoose(); // 连接数据库
 // webSocket connect
 const server: Server = http.createServer(app.callback());
 server.listen(3040, () => {
-  log.time().success().printLog(`WebSocket server is running on http://${ip}:3040`);
+  SystemLogger.time().success().printLog(`WebSocket server is running on http://${ip}:3040`);
 });
 app.listen(3030, ip, () => {
-  log.time().success().printLog(`server is running on http://${ip}:3030`);
+  SystemLogger.time().success().printLog(`server is running on http://${ip}:3030`);
 });
 // 本地支持同时启动4个客户端
 const origins = [3000, 3001, 3002, 3003].map((port) => `http://localhost:${port}`);
