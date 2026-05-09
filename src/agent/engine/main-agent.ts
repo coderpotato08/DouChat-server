@@ -42,6 +42,7 @@ export class MainAgent {
       apiKey: process.env.OPENAI_API_KEY as string,
       model: (process.env.OPENAI_MODEL || process.env.OPENAI_DEFAULT_MODAL) as string,
     };
+    console.log("MainAgent OpenAI Config:", env);
 
     this.agentConfig = env;
     this.agentClient = new OpenAI({
