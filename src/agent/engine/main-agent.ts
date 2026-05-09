@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { ChatCompletionFunctionTool, ChatCompletionToolChoiceOption } from "openai/resources";
+import { StreamHandler } from "../handlers/stream-handler";
 import { registerBaseTools } from "../tools/baseTools";
 import {
   ChatCompletionBaseParams,
@@ -9,7 +10,6 @@ import {
   SYSTEM_PROMPT,
 } from "../types/agent";
 import { ToolManager } from "./tool-manager";
-import { StreamHandler } from "../handlers/stream-handler";
 
 let mainAgentInstance: MainAgent | null = null;
 
@@ -37,15 +37,10 @@ export class MainAgent {
   constructor() {
     this.toolManager = new ToolManager();
     this.streamHandler = new StreamHandler();
-    // const env = {
-    //   baseUrl: process.env.OPENAI_BASE_URL as string,
-    //   apiKey: process.env.OPENAI_API_KEY as string,
-    //   model: process.env.OPENAI_MODEL as string,
-    // };
     const env = {
-      baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-      apiKey: "sk-f13366e145504bcb84b2df2c256c73a7",
-      model: "qwen3.5-35b-a3b",
+      baseUrl: process.env.OPENAI_BASE_URL as string,
+      apiKey: process.env.OPENAI_API_KEY as string,
+      model: (process.env.OPENAI_MODEL || process.env.OPENAI_DEFAULT_MODAL) as string,
     };
 
     this.agentConfig = env;

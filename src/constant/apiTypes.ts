@@ -103,7 +103,7 @@ export interface SearchMatchUserMessageParams extends SearchListParams {
 }
 
 export interface DsCompletionsParams {
-  /** 会话id */
+  /** 会话 id */
   chatSessionId: string,
   /** 提问 */
   prompt: string,
