@@ -13,3 +13,5 @@ export const formatMessageText = (content: any, type: MessageTypeEnum): string =
   }
   return ""
 }
+
+export const sleep = (time: number) => new Promise((resolve) => setTimeout(resolve, time)) //   sleep
