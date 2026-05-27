@@ -37,7 +37,9 @@ const approvalCheckpointer = new MemorySaver();
 const buildApprovalGraph = () => {
   const graph = new StateGraph(ApprovalState)
     .addNode(NodeType.PROCESS_TASK, processTask)
-    .addNode(NodeType.WAIT_APPROVAL, waitApproval)
+    .addNode(NodeType.WAIT_APPROVAL, waitApproval, {
+      ends: [NodeType.APPROVE_NODE, NodeType.REJECT_NODE],
+    })
     .addNode(NodeType.APPROVE_NODE, approveNode)
     .addNode(NodeType.REJECT_NODE, rejectNode)
     .addEdge(START, NodeType.PROCESS_TASK)
@@ -121,8 +123,8 @@ const processTask = async (state: ApprovalGraphState) => {
   await sleep(2000); // 模拟处理任务的时间
   return {
     ...state,
+    messages: [...state.messages, new AIMessage(`已处理任务内容: ${state.taskContent}`)],
     final_result: `processed: ${state.taskContent}`,
-    status: "approved",
   };
 };
 
@@ -172,16 +174,19 @@ export const startTask = async (ctx: Context) => {
   };
   const config = { configurable: { thread_id } };
 
-  const result = graph.invoke(initialState, config);
-
+  const result = await graph.invoke(initialState, config);
   printCheckpoint(thread_id, "启动任务后 - 中断前");
 
   if (isInterrupted(result)) {
     ctx.body = createRes(
       $SuccessCode,
-      { threadId: thread_id, status: "interrupted" },
+      { 
+        threadId: thread_id, 
+        status: "interrupted",
+      },
       "任务已启动，等待审批"
     );
+    return;
   }
 
   ctx.body = createRes($SuccessCode, { threadId: thread_id, status: "running" }, "success");
@@ -194,7 +199,7 @@ export const approvalTask = async (ctx: Context) => {
   // 打印恢复前的 checkpoint
   printCheckpoint(threadId, "恢复流程前 - 检查点状态");
   // 恢复执行
-  const result = graph.invoke(new Command({ resume: approved }), config);
+  const result = await graph.invoke(new Command({ resume: approved }), config);
   // 打印恢复后的 checkpoint
   printCheckpoint(threadId, "恢复流程后 - 检查点状态");
   ctx.body = createRes($SuccessCode, { status: "completed", result }, "success");
