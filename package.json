@@ -5,6 +5,7 @@
   "main": "index.ts",
   "scripts": {
     "build": "rm -rf dist && tsc && cp -r src/pem dist/pem",
+    "test": "node --import tsx --test src/**/*.test.ts",
     "server": "npx ts-node-dev --respawn ./src/index.ts",
     "upload": "./scripts/deploy.sh",
     "pm2:start": "npm run build && pm2 start ecosystem.config.js",

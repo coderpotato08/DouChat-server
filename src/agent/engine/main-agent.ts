@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import { ChatCompletionFunctionTool, ChatCompletionToolChoiceOption } from "openai/resources";
 import { StreamHandler } from "../handlers/stream-handler";
 import { registerBaseTools } from "../tools/baseTools";
+import { registerTodoTools } from "../tools/TodoManager/index";
 import {
   ChatCompletionBaseParams,
   EnvConfig,
@@ -50,7 +51,7 @@ export class MainAgent {
     });
     // 初始化工具
     try {
-      this.toolManager.registerTools([...registerBaseTools()]);
+      this.toolManager.registerTools([...registerBaseTools(), ...registerTodoTools()]);
     } catch (error) {
       console.error("❗️工具初始化失败:", error);
     }
