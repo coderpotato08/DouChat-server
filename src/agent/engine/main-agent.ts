@@ -72,7 +72,7 @@ export class MainAgent {
     };
   }
 
-  public async sendThinkingStreamMessage(userId: string, message: string, streamHandler?: EventHandler) {
+  public async sendThinkingStreamMessage(requestId: string, userId: string, message: string, streamHandler?: EventHandler) {
     let reachedNoToolRound = false;
     streamHandler?.onContentStart?.();
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -90,6 +90,9 @@ export class MainAgent {
       content: message,
     });
     // agent looping
+    if (streamHandler) {
+      this.toolManager.setEventHandler(streamHandler);
+    }
     streamHandler?.onThinkingStart?.();
     for (let round = 0; round < maxToolRounds; round++) {
       // 调用 openai api

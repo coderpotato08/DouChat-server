@@ -4,6 +4,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 import z from "zod";
 import { RegisteredTool } from "../engine/tool-manager";
+import { checkCommandPermission } from "./premission";
 
 const WORKSPACE = resolve(__dirname, "../../..");
 const execAsync = promisify(exec);
@@ -24,24 +25,6 @@ const ensureWithinWorkspace = (targetPath: string, label: string): string => {
   }
 
   return resolvedPath;
-};
-
-const containsDangerousCommand = (command: string): boolean => {
-  const dangerousPatterns = [
-    /(^|\s)rm\s+/i,
-    /(^|\s)rmdir\s+/i,
-    /(^|\s)mv\s+/i,
-    /(^|\s)dd\s+/i,
-    /(^|\s)mkfs(\.[^\s]+)?\s+/i,
-    /(^|\s)chmod\s+/i,
-    /(^|\s)chown\s+/i,
-    /(^|\s)find\b.*\s-delete(\s|$)/i,
-    /git\s+clean\s+-/i,
-    /git\s+reset\s+--hard/i,
-    /(^|\s)sudo\s+/i,
-  ];
-
-  return dangerousPatterns.some((pattern) => pattern.test(command));
 };
 
 export const registerBaseTools = (): RegisteredTool[] => {
@@ -101,7 +84,7 @@ export const registerBaseTools = (): RegisteredTool[] => {
         throw new Error("command is required.");
       }
 
-      if (containsDangerousCommand(input.command)) {
+      if (checkCommandPermission(input.command)) {
         throw new Error("Dangerous file operations are not allowed in run_bash.");
       }
 

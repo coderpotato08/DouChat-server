@@ -32,6 +32,9 @@ export class StreamHandler {
       onToolUseDone: async (toolName: string, toolUseId: string, output: string) => {
         write("data: " + JSON.stringify({ type: "tool_use_done", toolName, toolUseId, output }) + "\n\n");
       },
+      onPermissionRequest: async (requestId: string, message: string) => {
+        write("data: " + JSON.stringify({ type: "permission_request", requestId, message }) + "\n\n");
+      },
       onError: async (error: Error) => {
         write("data: " + JSON.stringify({ type: "error", error: error.message }) + "\n\n");
       },
