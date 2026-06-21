@@ -1,10 +1,7 @@
 import { ChatCompletionFunctionTool } from "openai/resources";
 import z from "zod";
 import { SystemLogger } from "../../console";
-import {
-  askUserForPermission,
-  checkCommandPermissionRules,
-} from "../tools/premission";
+import { askUserForPermission, checkCommandPermissionRules } from "../tools/premission";
 import { EventHandler } from "../types/agent";
 import { ToolExecutionResponse } from "../types/tools";
 

@@ -1,6 +1,56 @@
+import { isAbsolute, resolve } from "node:path";
 import { v4 as uuidv4 } from "uuid";
 import { permissionStore } from "../engine/permission-store";
 import { EventHandler } from "../types/agent";
+
+export const WORKSPACE = resolve(__dirname, "../../..");
+
+export const isPathWithin = (targetPath: string, rootPath: string): boolean => {
+  const normalizedRoot = resolve(rootPath);
+  const normalizedTarget = resolve(targetPath);
+  const rootWithSep = `${normalizedRoot}/`;
+
+  return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(rootWithSep);
+};
+
+export const ensureWithinWorkspace = (targetPath: string, label: string): string => {
+  const resolvedPath = resolve(targetPath);
+
+  if (!isPathWithin(resolvedPath, WORKSPACE)) {
+    throw new Error(`${label} must be within the current workspace: ${WORKSPACE}`);
+  }
+
+  return resolvedPath;
+};
+
+const ensureToolSandboxPermission = (toolName: string, params: Record<string, any>): boolean => {
+  if (toolName === "safe_path") {
+    const sandboxRoot = ensureWithinWorkspace(params.sandboxRoot, "sandboxRoot");
+    const resolvedPath = isAbsolute(params.inputPath)
+      ? ensureWithinWorkspace(params.inputPath, "inputPath")
+      : resolve(sandboxRoot, params.inputPath);
+
+    ensureWithinWorkspace(resolvedPath, "resolvedPath");
+
+    if (!isPathWithin(resolvedPath, sandboxRoot)) {
+      throw new Error("Path is outside sandbox root.");
+    }
+
+    return false;
+  }
+
+  if (toolName === "run_bash") {
+    ensureWithinWorkspace(params.cwd ? resolve(params.cwd) : WORKSPACE, "cwd");
+    return false;
+  }
+
+  if (toolName === "run_read" || toolName === "run_write") {
+    ensureWithinWorkspace(params.filePath, "filePath");
+    return false;
+  }
+
+  return false;
+};
 
 type PermissionRule = {
   tools: string[];
@@ -9,6 +59,14 @@ type PermissionRule = {
 };
 
 const premessionRules: PermissionRule[] = [
+  {
+    // 最前置沙箱判断：只要路径越出当前工作区或 sandboxRoot，直接拒绝执行
+    tools: ["safe_path", "run_bash", "run_read", "run_write"],
+    check: (params) => {
+      throw new Error("Permission sandbox pre-check requires toolName context.");
+    },
+    message: "",
+  },
   {
     // run_write 覆盖写入（非追加模式）需要用户确认
     tools: ["run_write"],
@@ -60,7 +118,16 @@ export const checkCommandPermission = (command: string): boolean => {
  */
 export const checkCommandPermissionRules = (toolName: string, params: Record<string, any>): string => {
   for (const rule of premessionRules) {
-    if (rule.tools.includes(toolName) && rule.check(params)) {
+    if (!rule.tools.includes(toolName)) {
+      continue;
+    }
+
+    if (rule === premessionRules[0]) {
+      ensureToolSandboxPermission(toolName, params);
+      continue;
+    }
+
+    if (rule.check(params)) {
       return rule.message;
     }
   }

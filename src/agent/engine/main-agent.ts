@@ -39,9 +39,9 @@ export class MainAgent {
     this.toolManager = new ToolManager();
     this.streamHandler = new StreamHandler();
     const env = {
-      baseUrl: process.env.OPENAI_BASE_URL as string,
-      apiKey: process.env.OPENAI_API_KEY as string,
-      model: (process.env.OPENAI_MODEL || process.env.OPENAI_DEFAULT_MODAL) as string,
+      baseUrl: process.env.OPENAI_DOUBAO_BASE_URL as string,
+      apiKey: process.env.OPENAI_DOUBAO_API_KEY as string,
+      model: (process.env.OPENAI_DOUBAO_MODEL || process.env.OPENAI_DOUBAO_DEFAULT_MODAL) as string,
     };
 
     this.agentConfig = env;

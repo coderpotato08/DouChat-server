@@ -4,28 +4,8 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 import z from "zod";
 import { RegisteredTool } from "../engine/tool-manager";
-import { checkCommandPermission } from "./premission";
-
-const WORKSPACE = resolve(__dirname, "../../..");
+import { checkCommandPermission, ensureWithinWorkspace, isPathWithin, WORKSPACE } from "./premission";
 const execAsync = promisify(exec);
-
-const isPathWithin = (targetPath: string, rootPath: string): boolean => {
-  const normalizedRoot = resolve(rootPath);
-  const normalizedTarget = resolve(targetPath);
-  const rootWithSep = `${normalizedRoot}/`;
-
-  return normalizedTarget === normalizedRoot || normalizedTarget.startsWith(rootWithSep);
-};
-
-const ensureWithinWorkspace = (targetPath: string, label: string): string => {
-  const resolvedPath = resolve(targetPath);
-
-  if (!isPathWithin(resolvedPath, WORKSPACE)) {
-    throw new Error(`${label} must be within the current workspace: ${WORKSPACE}`);
-  }
-
-  return resolvedPath;
-};
 
 export const registerBaseTools = (): RegisteredTool[] => {
   const safePath: RegisteredTool = {
