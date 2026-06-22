@@ -1,7 +1,7 @@
 import { Context } from "koa";
 import { v4 as uuidv4 } from "uuid";
 import { getMainAgent, initMainAgent } from "../agent/engine/main-agent";
-import { permissionStore } from "../agent/engine/permission-store";
+import { permissionStore } from "../agent/permission";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import { createRes } from "../models/responseModel";
 import { createSSESession } from "../utils/sse-utils";
@@ -68,8 +68,8 @@ export const agentCompletion = async (ctx: Context) => {
   let agent;
   try {
     agent = getMainAgent();
-  } catch (error) {
-    console.error("❗️主Agent尚未初始化:", error);
+  } catch (error: any) {
+    console.error("❗️主Agent尚未初始化:", error.message);
     sseSession.sendError("MainAgent has not been initialized. Please call initMainAgent() first.");
     sseSession.close();
     return;

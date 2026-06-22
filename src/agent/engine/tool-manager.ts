@@ -1,7 +1,7 @@
 import { ChatCompletionFunctionTool } from "openai/resources";
 import z from "zod";
 import { SystemLogger } from "../../console";
-import { askUserForPermission, checkCommandPermissionRules } from "../tools/premission";
+import { askUserForPermission, checkCommandPermissionRules } from "../permission";
 import { EventHandler } from "../types/agent";
 import { ToolExecutionResponse } from "../types/tools";
 
@@ -113,10 +113,12 @@ export class ToolManager {
         .printLog();
       return Promise.resolve(successResult);
     } catch (error: any) {
+      const output = `❗️工具执行失败: ${error.message}`;
       const errorResult = {
         toolName,
         success: false,
-        error: `Tool execution failed: ${error.message}`,
+        output,
+        error: output,
         executionTime: 0,
       };
       SystemLogger.agent()

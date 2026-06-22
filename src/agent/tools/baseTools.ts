@@ -4,7 +4,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 import z from "zod";
 import { RegisteredTool } from "../engine/tool-manager";
-import { checkCommandPermission, ensureWithinWorkspace, isPathWithin, WORKSPACE } from "./premission";
+import { checkCommandPermission, ensureWithinWorkspace, isPathWithin, WORKSPACE } from "../permission";
 const execAsync = promisify(exec);
 
 export const registerBaseTools = (): RegisteredTool[] => {
@@ -65,7 +65,7 @@ export const registerBaseTools = (): RegisteredTool[] => {
       }
 
       if (checkCommandPermission(input.command)) {
-        throw new Error("Dangerous file operations are not allowed in run_bash.");
+        throw new Error("【系统强制禁止】当前命令命中全局高危黑名单，该类命令永久不允许执行");
       }
 
       const cwd = ensureWithinWorkspace(input.cwd ? resolve(input.cwd) : WORKSPACE, "cwd");

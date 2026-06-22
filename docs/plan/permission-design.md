@@ -64,7 +64,7 @@ export const permissionStore = new PermissionStore();
 
 | 文件                                                | 改动内容                                                                                                                                             |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `premission.ts`                                     | 实现 `askUserForPermission`：生成 `requestId`，触发 `onPermissionRequest` 事件，调用 `permissionStore.waitForDecision`                               |
+| `src/agent/permission/index.ts`                     | 实现 `askUserForPermission`：生成 `requestId`，触发 `onPermissionRequest` 事件，调用 `permissionStore.waitForDecision`                               |
 | `types/agent.ts`                                    | `EventHandler` 新增 `onPermissionRequest?(requestId, message): Promise<void>`                                                                        |
 | `handlers/stream-handler.ts`                        | 实现 `onPermissionRequest`，写入 SSE 事件 `{ type: "permission_request", requestId, message }`                                                       |
 | `engine/tool-manager.ts`                            | `executeToolHandler` 中在调用工具前插入 gate2+gate3；新增 `setEventHandler(handler)` 方法供 Loop 注入                                                |
