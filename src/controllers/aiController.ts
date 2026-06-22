@@ -1,7 +1,7 @@
 import { Context } from "koa";
 import { v4 as uuidv4 } from "uuid";
 import { getMainAgent, initMainAgent } from "../agent/engine/main-agent";
-import { permissionStore } from "../agent/permission";
+import { bashBlacklistStore, permissionStore } from "../agent/permission";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../constant/errorData";
 import { createRes } from "../models/responseModel";
 import { createSSESession } from "../utils/sse-utils";
@@ -65,7 +65,7 @@ export const agentCompletion = async (ctx: Context) => {
     return;
   }
 
-  let agent;
+  let agent: ReturnType<typeof getMainAgent>;
   try {
     agent = getMainAgent();
   } catch (error: any) {
@@ -82,12 +82,19 @@ export const agentCompletion = async (ctx: Context) => {
     sseSession.stream.write(chunk);
   });
 
-  void agent
-    .sendThinkingStreamMessage(requestBody.requestId, requestBody.userId, requestBody.prompt, eventHandler)
+  void bashBlacklistStore
+    .runWithSession(requestBody.requestId, () =>
+      agent.sendThinkingStreamMessage(
+        requestBody.requestId,
+        requestBody.userId,
+        requestBody.prompt,
+        eventHandler,
+      ),
+    )
     .then(() => {
       sseSession.close();
     })
-    .catch((error) => {
+    .catch((error: unknown) => {
       console.error("Agent处理消息时发生错误:", error);
       sseSession.sendError(
         error instanceof Error && error.message ? error.message : $ErrorMessage.Common.SERVER_ERROR,

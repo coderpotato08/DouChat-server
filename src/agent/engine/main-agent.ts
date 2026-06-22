@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { ChatCompletionFunctionTool, ChatCompletionToolChoiceOption } from "openai/resources";
 import { StreamHandler } from "../handlers/stream-handler";
+import { buildBashBlacklistSystemPrompt } from "../permission";
 import { registerBaseTools } from "../tools/baseTools";
 import { registerTodoTools } from "../tools/TodoManager/index";
 import {
@@ -83,7 +84,7 @@ export class MainAgent {
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: SYSTEM_PROMPT,
+        content: `${SYSTEM_PROMPT}\n\n${buildBashBlacklistSystemPrompt(requestId)}`,
       },
     ];
     const baseConfig: ChatCompletionBaseParams = {

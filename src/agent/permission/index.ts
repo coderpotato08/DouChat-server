@@ -1,9 +1,11 @@
 import { isAbsolute, resolve } from "node:path";
 import { v4 as uuidv4 } from "uuid";
 import { EventHandler } from "../types/agent";
+import { bashBlacklistStore } from "./bash-blacklist-store";
 import { BashCmdPattern, dangerousCmdPatterns, sensitiveCmdPatterns } from "./bash-cmd-patterns";
 import { permissionStore } from "./permission-store";
 
+export { bashBlacklistStore } from "./bash-blacklist-store";
 export { permissionStore } from "./permission-store";
 
 export const WORKSPACE = resolve(__dirname, "../../..");
@@ -65,6 +67,10 @@ const matchesCmdPatterns = (command: string, patterns: BashCmdPattern[]): boolea
   return patterns.some((pattern) => pattern.cmd.test(command));
 };
 
+const findMatchedCmdPattern = (command: string, patterns: BashCmdPattern[]): BashCmdPattern | undefined => {
+  return patterns.find((pattern) => pattern.cmd.test(command));
+};
+
 const permissionRules: PermissionRule[] = [
   {
     tools: ["safe_path", "run_bash", "run_read", "run_write"],
@@ -88,10 +94,23 @@ const permissionRules: PermissionRule[] = [
 ];
 
 export const checkCommandPermission = (command: string): boolean => {
-  return matchesCmdPatterns(command, dangerousCmdPatterns);
+  const matchedPattern = findMatchedCmdPattern(command, dangerousCmdPatterns);
+  if (!matchedPattern) {
+    return false;
+  }
+
+  bashBlacklistStore.rememberBlockedPattern(matchedPattern, command);
+  return true;
 };
 
 export const checkCommandPermissionRules = (toolName: string, params: Record<string, any>): string => {
+  if (toolName === "run_bash") {
+    const blacklistMessage = bashBlacklistStore.getPreflightBlockMessage(params.command || "");
+    if (blacklistMessage) {
+      throw new Error(blacklistMessage);
+    }
+  }
+
   for (const rule of permissionRules) {
     if (!rule.tools.includes(toolName)) {
       continue;
@@ -108,6 +127,10 @@ export const checkCommandPermissionRules = (toolName: string, params: Record<str
   }
 
   return "";
+};
+
+export const buildBashBlacklistSystemPrompt = (sessionId: string): string => {
+  return bashBlacklistStore.buildSystemPromptConstraint(sessionId);
 };
 
 export const askUserForPermission = async (
