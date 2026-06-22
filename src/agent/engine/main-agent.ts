@@ -72,7 +72,12 @@ export class MainAgent {
     };
   }
 
-  public async sendThinkingStreamMessage(requestId: string, userId: string, message: string, streamHandler?: EventHandler) {
+  public async sendThinkingStreamMessage(
+    requestId: string,
+    userId: string,
+    message: string,
+    streamHandler?: EventHandler,
+  ) {
     let reachedNoToolRound = false;
     streamHandler?.onContentStart?.();
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -118,7 +123,7 @@ export class MainAgent {
           const toolResult = await this.toolManager.executeToolHandler(
             tool.id,
             tool.function.name,
-            tool.function.arguments
+            tool.function.arguments,
           );
           const outputStr = JSON.stringify(toolResult.output);
           streamHandler?.onToolUseDone?.(tool.function.name, tool.id, outputStr);
@@ -155,6 +160,7 @@ export class MainAgent {
       for await (const chunk of stream) {
         const delta = chunk.choices?.[0]?.delta?.content;
         if (delta) {
+          process.stdout.write(delta);
           finalContent += delta;
           streamHandler?.onContentDelta?.(delta);
         }

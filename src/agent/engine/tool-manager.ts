@@ -69,13 +69,6 @@ export class ToolManager {
     }
 
     try {
-      SystemLogger.agent()
-        .toolStart({
-          toolName,
-          toolCallId,
-          input: rawArgs,
-        })
-        .printLog();
       const parsedArgs = rawArgs ? JSON.parse(rawArgs) : {};
 
       // gate 2: 规则匹配
@@ -97,6 +90,7 @@ export class ToolManager {
         }
       }
 
+      SystemLogger.agent().toolStart({ toolName, toolCallId, input: rawArgs }).printLog();
       const toolResult = await tool.execute(parsedArgs);
       const executionTime = Date.now() - startTime;
       const successResult = {

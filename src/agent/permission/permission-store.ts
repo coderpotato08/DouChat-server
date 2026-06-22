@@ -1,6 +1,6 @@
 type PendingDecision = {
   resolve: (allow: boolean) => void;
-  timer: NodeJS.Timeout;
+  timer?: NodeJS.Timeout;
 };
 
 class PermissionStore {
@@ -8,16 +8,20 @@ class PermissionStore {
 
   /**
    * 挂起等待用户对指定 requestId 的 allow/deny 决策。
-   * 超时（默认 60s）后自动 deny，防止 Loop 永久阻塞。
+   * 未传 timeoutMs 时将一直等待人工审核。
+   * 传入 timeoutMs 后，超时自动 deny，防止 Loop 永久阻塞。
    */
-  waitForDecision(requestId: string, timeoutMs = 60_000): Promise<boolean> {
+  waitForDecision(requestId: string, timeoutMs?: number): Promise<boolean> {
     return new Promise<boolean>((resolve) => {
-      const timer = setTimeout(() => {
-        if (this.pending.has(requestId)) {
-          this.pending.delete(requestId);
-          resolve(false);
-        }
-      }, timeoutMs);
+      const timer =
+        typeof timeoutMs === "number" && timeoutMs > 0
+          ? setTimeout(() => {
+              if (this.pending.has(requestId)) {
+                this.pending.delete(requestId);
+                resolve(false);
+              }
+            }, timeoutMs)
+          : undefined;
 
       this.pending.set(requestId, { resolve, timer });
     });
@@ -29,7 +33,9 @@ class PermissionStore {
   resolveDecision(requestId: string, allow: boolean): void {
     const entry = this.pending.get(requestId);
     if (!entry) return;
-    clearTimeout(entry.timer);
+    if (entry.timer) {
+      clearTimeout(entry.timer);
+    }
     this.pending.delete(requestId);
     entry.resolve(allow);
   }

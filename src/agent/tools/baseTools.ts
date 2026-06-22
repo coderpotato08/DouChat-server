@@ -4,7 +4,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 import z from "zod";
 import { RegisteredTool } from "../engine/tool-manager";
-import { checkCommandPermission, ensureWithinWorkspace, isPathWithin, WORKSPACE } from "../permission";
+import { checkCommandPermission, WORKSPACE } from "../permission";
 const execAsync = promisify(exec);
 
 export const registerBaseTools = (): RegisteredTool[] => {
@@ -22,19 +22,8 @@ export const registerBaseTools = (): RegisteredTool[] => {
     },
 
     execute: async (input): Promise<string> => {
-      const sandboxRoot = ensureWithinWorkspace(input.sandboxRoot, "sandboxRoot");
-      const resolvedPath = isAbsolute(input.inputPath)
-        ? ensureWithinWorkspace(input.inputPath, "inputPath")
-        : resolve(sandboxRoot, input.inputPath);
-
-      ensureWithinWorkspace(resolvedPath, "resolvedPath");
-      const isWithinSandbox = isPathWithin(resolvedPath, sandboxRoot);
-
-      if (!isWithinSandbox) {
-        throw new Error("Path is outside sandbox root.");
-      }
-
-      return resolvedPath;
+      const sandboxRoot = resolve(input.sandboxRoot);
+      return isAbsolute(input.inputPath) ? resolve(input.inputPath) : resolve(sandboxRoot, input.inputPath);
     },
   };
 
@@ -65,10 +54,14 @@ export const registerBaseTools = (): RegisteredTool[] => {
       }
 
       if (checkCommandPermission(input.command)) {
-        throw new Error("【系统强制禁止】当前命令命中全局高危黑名单，该类命令永久不允许执行");
+        throw new Error(`
+          【安全拦截】当前执行指令触发全局高危操作黑名单，该类命令永久禁止执行。请勿再次通过 run_bash 发起文件高危操作指令
+          【原因】：命中高危指令 ${input.command}
+           禁止重复提交同类高危 bash 调用请求。
+          `);
       }
 
-      const cwd = ensureWithinWorkspace(input.cwd ? resolve(input.cwd) : WORKSPACE, "cwd");
+      const cwd = input.cwd ? resolve(input.cwd) : WORKSPACE;
       const timeoutMs = input.timeoutMs && input.timeoutMs > 0 ? input.timeoutMs : 10000;
 
       try {
@@ -119,7 +112,7 @@ export const registerBaseTools = (): RegisteredTool[] => {
         throw new Error("filePath is required.");
       }
 
-      const filePath = ensureWithinWorkspace(input.filePath, "filePath");
+      const filePath = resolve(input.filePath);
       const raw = await readFile(filePath, "utf-8");
 
       if (!input.startLine && !input.endLine) {
@@ -162,7 +155,7 @@ export const registerBaseTools = (): RegisteredTool[] => {
         throw new Error("filePath is required.");
       }
 
-      const filePath = ensureWithinWorkspace(input.filePath, "filePath");
+      const filePath = resolve(input.filePath);
       const append = !!input.append;
       await mkdir(dirname(filePath), { recursive: true });
 
