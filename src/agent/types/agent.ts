@@ -1,5 +1,9 @@
 import OpenAI from "openai";
 
+export const LLM_PROVIDER_NAMES = ["DOUBAO", "QWEN"] as const;
+
+export type LlmProviderName = (typeof LLM_PROVIDER_NAMES)[number];
+
 export type EnvConfig = {
   openAI: OpenAiEnvConfig;
 };

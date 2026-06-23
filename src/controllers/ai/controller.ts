@@ -54,7 +54,7 @@ export const agentCompletion = async (ctx: Context) => {
 
   void bashBlacklistStore
     .runWithSession(requestId, () =>
-      agent.sendThinkingStreamMessage(requestId, body.userId, body.prompt, eventHandler),
+      agent.sendThinkingStreamMessage(requestId, body.userId, body.prompt, body.modelProvider, eventHandler),
     )
     .then(() => {
       sseSession.close();

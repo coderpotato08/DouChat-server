@@ -9,8 +9,10 @@ import {
   EnvConfig,
   EventHandler,
   FINAL_MESSAGE,
+  LlmProviderName,
   SYSTEM_PROMPT,
 } from "../types/agent";
+import { LlmService } from "./llm-service";
 import { ToolManager } from "./tool-manager";
 
 let mainAgentInstance: MainAgent | null = null;
@@ -29,27 +31,14 @@ export function getMainAgent(): MainAgent {
   return mainAgentInstance;
 }
 export class MainAgent {
-  // openai 实例
-  private agentClient: OpenAI;
-  // openai 相关配置
-  private agentConfig: EnvConfig["openAI"]; // 可以根据需要定义更具体的类型
+  private llmService: LlmService;
   private toolManager: ToolManager;
   private streamHandler: StreamHandler;
 
   constructor() {
     this.toolManager = new ToolManager();
     this.streamHandler = new StreamHandler();
-    const env = {
-      baseUrl: process.env.OPENAI_DOUBAO_BASE_URL as string,
-      apiKey: process.env.OPENAI_DOUBAO_API_KEY as string,
-      model: (process.env.OPENAI_DOUBAO_MODEL || process.env.OPENAI_DOUBAO_DEFAULT_MODAL) as string,
-    };
-
-    this.agentConfig = env;
-    this.agentClient = new OpenAI({
-      baseURL: this.agentConfig.baseUrl,
-      apiKey: this.agentConfig.apiKey,
-    });
+    this.llmService = new LlmService();
     // 初始化工具
     try {
       this.toolManager.registerTools([...registerBaseTools(), ...registerTodoTools()]);
@@ -58,8 +47,8 @@ export class MainAgent {
     }
   }
 
-  public buildCompletionOptions() {
-    const { baseUrl, apiKey, model } = this.agentConfig;
+  public buildCompletionOptions(agentConfig: EnvConfig["openAI"]) {
+    const { baseUrl, apiKey, model } = agentConfig;
     if (!baseUrl || !apiKey || !model) {
       throw new Error("OpenAI configuration is incomplete. Please check your environment variables.");
     }
@@ -77,8 +66,10 @@ export class MainAgent {
     requestId: string,
     userId: string,
     message: string,
+    llmProvider: LlmProviderName,
     streamHandler?: EventHandler,
   ) {
+    const { client: agentClient, config: agentConfig } = this.llmService.getClientBundle(llmProvider);
     let reachedNoToolRound = false;
     streamHandler?.onContentStart?.();
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -88,7 +79,7 @@ export class MainAgent {
       },
     ];
     const baseConfig: ChatCompletionBaseParams = {
-      ...this.buildCompletionOptions(),
+      ...this.buildCompletionOptions(agentConfig),
     };
     const maxToolRounds = 20;
     messageList.push({
@@ -103,7 +94,7 @@ export class MainAgent {
     for (let round = 0; round < maxToolRounds; round++) {
       // 调用 openai api
       try {
-        const completion = await this.agentClient.chat.completions.create({
+        const completion = await agentClient.chat.completions.create({
           ...baseConfig,
           stream: false,
           messages: messageList,
@@ -150,10 +141,10 @@ export class MainAgent {
       content: FINAL_MESSAGE,
     });
 
-    let stream: Awaited<ReturnType<typeof this.agentClient.chat.completions.create>>;
+    let stream: Awaited<ReturnType<typeof agentClient.chat.completions.create>>;
     try {
-      stream = await this.agentClient.chat.completions.create({
-        ...this.buildCompletionOptions(),
+      stream = await agentClient.chat.completions.create({
+        ...this.buildCompletionOptions(agentConfig),
         stream: true,
         messages: messageList,
       });
