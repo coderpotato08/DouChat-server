@@ -2,6 +2,11 @@ import OpenAI from "openai";
 import { ChatCompletionFunctionTool, ChatCompletionToolChoiceOption } from "openai/resources";
 import { StreamHandler } from "../handlers/stream-handler";
 import { buildBashBlacklistSystemPrompt } from "../permission";
+import {
+  COMPLEXITY_ROUTE_CONFIG_MAP,
+  complexityAnalyze,
+  ComplexityAnalyzeResult,
+} from "../sub-agent/complexity-analyze-agent";
 import { registerBaseTools } from "../tools/baseTools";
 import { registerTodoTools } from "../tools/TodoManager/index";
 import {
@@ -77,6 +82,19 @@ export class MainAgent {
     };
   }
 
+  // 将主 agent 的基础指令、复杂度路由结果和权限约束统一收口到同一条 system prompt。
+  private buildSystemPrompt(requestId: string, complexityResult: ComplexityAnalyzeResult): string {
+    const routeConfig = COMPLEXITY_ROUTE_CONFIG_MAP[complexityResult.routeTarget];
+
+    return [
+      SYSTEM_PROMPT,
+      "Complexity routing result:",
+      JSON.stringify(complexityResult),
+      routeConfig.extraPrompt,
+      buildBashBlacklistSystemPrompt(requestId),
+    ].join("\n");
+  }
+
   public async sendThinkingStreamMessage(
     requestId: string,
     userId: string,
@@ -85,6 +103,9 @@ export class MainAgent {
     streamHandler?: EventHandler,
   ) {
     const { client: agentClient, config: agentConfig } = this.llmService.getClientBundle(modelProvider);
+    // 在进入主循环前先做一次轻量复杂度分析，用于约束本轮回答的工具偏好和循环预算。
+    const complexityResult = await complexityAnalyze(message);
+    const routeConfig = COMPLEXITY_ROUTE_CONFIG_MAP[complexityResult.routeTarget];
     // agent loop 终止原因
     let stopReason: AgentStopReason = "completed";
     // agent loop 异常终止错误
@@ -94,13 +115,15 @@ export class MainAgent {
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: `${SYSTEM_PROMPT}\n\n${buildBashBlacklistSystemPrompt(requestId)}`,
+        content: this.buildSystemPrompt(requestId, complexityResult),
       },
     ];
     const baseConfig: ChatCompletionBaseParams = {
       ...this.buildCompletionOptions(agentConfig),
+      temperature: routeConfig.temperature,
     };
-    const maxToolRounds = 20;
+    // 非 agent_loop 路由下压低工具轮次，避免简单问题进入冗长的工具循环。
+    const maxToolRounds = routeConfig.maxLoopLimit;
     const userPromptSubmitContext: UserPromptSubmitHookContext = {
       requestId,
       userId,
@@ -173,6 +196,7 @@ export class MainAgent {
     try {
       stream = await agentClient.chat.completions.create({
         ...this.buildCompletionOptions(agentConfig),
+        temperature: routeConfig.temperature,
         stream: true,
         messages: messageList,
       });

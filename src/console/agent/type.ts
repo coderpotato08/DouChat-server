@@ -1,3 +1,9 @@
+import type {
+  ComplexityAnalyzeResult,
+  ComplexityLevel,
+  ComplexityRouteTarget,
+} from "../../agent/sub-agent/complexity-analyze-agent";
+
 export type AgentSessionStartPayload = {
   sessionId: string;
   userId: string;
@@ -10,6 +16,16 @@ export type AgentResponsePayload = {
   finishReason: string | null | undefined;
   toolCallCount: number;
   contentPreview?: string;
+};
+
+export type AgentIntentRecognizedPayload = {
+  success: boolean;
+  durationMs: number;
+  complexityLevel: ComplexityLevel;
+  confidence: ComplexityAnalyzeResult["confidence"];
+  routeTarget: ComplexityRouteTarget;
+  tokenCost: ComplexityAnalyzeResult["tokenCost"];
+  judgeFactors: ComplexityAnalyzeResult["judgeFactors"];
 };
 
 export type AgentToolStartPayload = {

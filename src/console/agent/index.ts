@@ -1,6 +1,7 @@
 import chalk from "chalk";
 import BaseLog, { ArgTypeEnum, ConsoleArg } from "../base";
 import {
+  AgentIntentRecognizedPayload,
   AgentResponsePayload,
   AgentSessionDonePayload,
   AgentSessionErrorPayload,
@@ -66,7 +67,7 @@ export default class AgentLog extends BaseLog {
       [ArgTypeEnum.TEXT, chalk.cyan.bold(payload.sessionId)],
       [ArgTypeEnum.TEXT, `user=${chalk.green.bold(payload.userId)}`],
       [ArgTypeEnum.TEXT, payload.model ? `model=${chalk.yellow.bold(payload.model)}` : ""],
-      [ArgTypeEnum.TEXT, chalk.gray(previewText(payload.message, 100) || "empty prompt")]
+      [ArgTypeEnum.TEXT, chalk.gray(previewText(payload.message, 100) || "empty prompt")],
     );
   };
 
@@ -76,7 +77,21 @@ export default class AgentLog extends BaseLog {
       [ArgTypeEnum.TEXT, chalk.magenta.bold(`[LLM ${payload.round}]`)],
       [ArgTypeEnum.TEXT, `finish=${chalk.yellow.bold(payload.finishReason || "unknown")}`],
       [ArgTypeEnum.TEXT, `tools=${chalk.green.bold(payload.toolCallCount)}`],
-      [ArgTypeEnum.TEXT, preview ? chalk.gray(preview) : chalk.gray("empty response")]
+      [ArgTypeEnum.TEXT, preview ? chalk.gray(preview) : chalk.gray("empty response")],
+    );
+  };
+
+  public intentRecognized = (payload: AgentIntentRecognizedPayload) => {
+    const nextLog = payload.success ? this.success().time() : this.warning().time();
+
+    return nextLog.appendArgs(
+      [ArgTypeEnum.TEXT, chalk.yellow.bold("[INTENT]")],
+      [ArgTypeEnum.TEXT, `耗时：${chalk.cyan.bold(`${payload.durationMs}ms`)}`],
+      [ArgTypeEnum.TEXT, `复杂度：${chalk.yellow.bold(payload.complexityLevel)}`],
+      [ArgTypeEnum.TEXT, `置信度：${chalk.green.bold(payload.confidence)}`],
+      [ArgTypeEnum.TEXT, `路由：${chalk.magenta.bold(payload.routeTarget)}`],
+      [ArgTypeEnum.TEXT, `成本：${chalk.cyan.bold(payload.tokenCost)}`],
+      [ArgTypeEnum.TEXT, chalk.gray(`判断因素：${payload.judgeFactors.join(" | ") || "无"}`)],
     );
   };
 
@@ -86,7 +101,7 @@ export default class AgentLog extends BaseLog {
       [ArgTypeEnum.TEXT, formatToolBadge("TOOL START")],
       [ArgTypeEnum.TEXT, chalk.green.bold(payload.toolName)],
       [ArgTypeEnum.TEXT, payload.toolCallId ? chalk.gray(`#${payload.toolCallId}`) : ""],
-      [ArgTypeEnum.TEXT, inputPreview ? chalk.gray(`input=${inputPreview}`) : chalk.gray("no input")]
+      [ArgTypeEnum.TEXT, inputPreview ? chalk.gray(`input=${inputPreview}`) : chalk.gray("no input")],
     );
   };
 
@@ -97,7 +112,7 @@ export default class AgentLog extends BaseLog {
       [ArgTypeEnum.TEXT, chalk.green.bold(payload.toolName)],
       [ArgTypeEnum.TEXT, payload.toolCallId ? chalk.gray(`#${payload.toolCallId}`) : ""],
       [ArgTypeEnum.TEXT, `${chalk.cyan.bold(`${payload.executionTime}ms`)}`],
-      [ArgTypeEnum.TEXT, resultPreview ? chalk.gray(`output=${resultPreview}`) : chalk.gray("no output")]
+      [ArgTypeEnum.TEXT, resultPreview ? chalk.gray(`output=${resultPreview}`) : chalk.gray("no output")],
     );
   };
 
@@ -106,14 +121,14 @@ export default class AgentLog extends BaseLog {
     return this.withDefaults().appendArgs(
       [ArgTypeEnum.TEXT, chalk.green.bold("[SESSION DONE]")],
       [ArgTypeEnum.TEXT, `rounds=${chalk.green.bold(payload.roundsCompleted)}`],
-      [ArgTypeEnum.TEXT, chalk.gray(suffix)]
+      [ArgTypeEnum.TEXT, chalk.gray(suffix)],
     );
   };
 
   public sessionError = (payload: AgentSessionErrorPayload) => {
     return this.withDefaults("error").appendArgs(
       [ArgTypeEnum.TEXT, chalk.red.bold(`[SESSION ERROR ${payload.round}]`)],
-      [ArgTypeEnum.TEXT, chalk.gray(formatError(payload.error))]
+      [ArgTypeEnum.TEXT, chalk.gray(formatError(payload.error))],
     );
   };
 }
