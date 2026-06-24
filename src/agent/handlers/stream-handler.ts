@@ -6,6 +6,14 @@ export class StreamHandler {
     this.eventHandler = eventHandler;
   }
 
+  public setEventHandler(eventHandler: EventHandler): void {
+    this.eventHandler = eventHandler;
+  }
+
+  public getEventHandler(): EventHandler {
+    return this.eventHandler;
+  }
+
   createHttpStreamHandler(write: (chunk: string) => void): EventHandler {
     return {
       onContentStart: async () => {

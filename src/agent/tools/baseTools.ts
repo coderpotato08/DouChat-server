@@ -4,7 +4,7 @@ import { dirname, isAbsolute, resolve } from "node:path";
 import { promisify } from "node:util";
 import z from "zod";
 import { RegisteredTool } from "../engine/tool-manager";
-import { checkCommandPermission, WORKSPACE } from "../permission";
+import { checkBashCmdPermission, WORKSPACE } from "../permission";
 const execAsync = promisify(exec);
 
 export const registerBaseTools = (): RegisteredTool[] => {
@@ -53,7 +53,7 @@ export const registerBaseTools = (): RegisteredTool[] => {
         throw new Error("command is required.");
       }
 
-      if (checkCommandPermission(input.command)) {
+      if (checkBashCmdPermission(input.command)) {
         throw new Error(`
           【安全拦截】当前执行指令触发全局高危操作黑名单，该类命令永久禁止执行。请勿再次通过 run_bash 发起文件高危操作指令
           【原因】：命中高危指令 ${input.command}

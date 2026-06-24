@@ -1,9 +1,16 @@
 import { ChatCompletionFunctionTool } from "openai/resources";
 import z from "zod";
 import { SystemLogger } from "../../console";
+import { StreamHandler } from "../handlers/stream-handler";
 import { askUserForPermission, checkCommandPermissionRules } from "../permission";
-import { EventHandler } from "../types/agent";
+import {
+  AgentHookCallback,
+  AgentHookEventName,
+  PostToolUseHookContext,
+  PreToolUseHookContext,
+} from "../types/agent";
 import { ToolExecutionResponse } from "../types/tools";
+import { HookManager } from "./hook-manager";
 
 export const DEFAULT_ALLOW_TOOLS = [
   "get_message_records",
@@ -41,17 +48,40 @@ function toFunctionParameters(
 
 export class ToolManager {
   private tools: Map<string, InnerRegisteredTool>;
-  private eventHandler: EventHandler | undefined;
+  private readonly hookManager: HookManager;
+  private readonly streamHandler: StreamHandler;
 
-  constructor() {
+  constructor(hookManager: HookManager, streamHandler: StreamHandler) {
     this.tools = new Map();
+    this.hookManager = hookManager;
+    this.streamHandler = streamHandler;
+    this.registerHooks("PreToolUse", async (context) => {
+      const permissionMessage = checkCommandPermissionRules(context.toolName, context.parsedArgs);
+      if (!permissionMessage) {
+        return;
+      }
+
+      const allowed = await context.requestPermission?.(permissionMessage);
+      if (!allowed) {
+        return {
+          block: true,
+          reason: `PermissionDenied: user rejected the tool call for "${context.toolName}"`,
+        };
+      }
+    });
   }
 
-  public setEventHandler(handler: EventHandler): void {
-    this.eventHandler = handler;
+  public registerHooks<TEventName extends AgentHookEventName>(
+    event: TEventName,
+    callback: AgentHookCallback<TEventName>,
+  ): void {
+    this.hookManager.registerHooks(event, callback);
   }
 
   public async executeToolHandler(
+    requestId: string,
+    userId: string,
+    modelProvider: PreToolUseHookContext["modelProvider"],
     toolCallId: string,
     toolName: string,
     rawArgs: string | undefined,
@@ -70,26 +100,38 @@ export class ToolManager {
 
     try {
       const parsedArgs = rawArgs ? JSON.parse(rawArgs) : {};
+      const eventHandler = this.streamHandler.getEventHandler();
 
-      // gate 2: 规则匹配
-      const permissionMessage = checkCommandPermissionRules(toolName, parsedArgs);
-      if (permissionMessage) {
-        // gate 3: 暂停等待用户决策
-        const allowed = await askUserForPermission(permissionMessage, this.eventHandler);
-        if (!allowed) {
-          const deniedResult: ToolExecutionResponse = {
-            toolName,
-            success: false,
-            error: `PermissionDenied: user rejected the tool call for "${toolName}"`,
-            executionTime: Date.now() - startTime,
-          };
-          SystemLogger.agent()
-            .toolDone({ toolCallId, ...deniedResult })
-            .printLog();
-          return deniedResult;
-        }
+      const preToolUseContext: PreToolUseHookContext = {
+        requestId,
+        userId,
+        modelProvider,
+        toolCallId,
+        toolName,
+        rawArgs,
+        parsedArgs,
+        requestPermission: async (message: string) => askUserForPermission(message, eventHandler),
+      };
+      const preToolUseResult = await this.hookManager.triggerHooks("PreToolUse", preToolUseContext);
+      if (preToolUseResult?.block) {
+        const blockReason = preToolUseResult.reason || `Tool call blocked by PreToolUse hook: ${toolName}`;
+        const deniedResult: ToolExecutionResponse = {
+          toolName,
+          success: false,
+          error: blockReason,
+          output: blockReason,
+          executionTime: Date.now() - startTime,
+        };
+        SystemLogger.agent()
+          .toolDone({
+            toolCallId,
+            ...deniedResult,
+          })
+          .printLog();
+        return deniedResult;
       }
 
+      await eventHandler?.onToolUseStart?.(toolName, toolCallId, rawArgs);
       SystemLogger.agent().toolStart({ toolName, toolCallId, input: rawArgs }).printLog();
       const toolResult = await tool.execute(parsedArgs);
       const executionTime = Date.now() - startTime;
@@ -105,6 +147,18 @@ export class ToolManager {
           ...successResult,
         })
         .printLog();
+      await eventHandler?.onToolUseDone?.(toolName, toolCallId, JSON.stringify(successResult.output));
+      const postToolUseContext: PostToolUseHookContext = {
+        requestId,
+        userId,
+        modelProvider,
+        toolCallId,
+        toolName,
+        rawArgs,
+        parsedArgs,
+        toolResult: successResult,
+      };
+      await this.hookManager.triggerHooks("PostToolUse", postToolUseContext);
       return Promise.resolve(successResult);
     } catch (error: any) {
       const output = `❗️工具执行失败: ${error.message}`;
@@ -121,6 +175,8 @@ export class ToolManager {
           ...errorResult,
         })
         .printLog();
+      const eventHandler = this.streamHandler.getEventHandler();
+      await eventHandler?.onToolUseDone?.(toolName, toolCallId, output);
       return Promise.resolve(errorResult);
     }
   }

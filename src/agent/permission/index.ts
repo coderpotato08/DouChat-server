@@ -112,12 +112,11 @@ const toolPermissionPolicies: Partial<Record<string, ToolPermissionPolicy>> = {
   },
 };
 
-export const checkCommandPermission = (command: string): boolean => {
+export const checkBashCmdPermission = (command: string): boolean => {
   const matchedPattern = findMatchedCmdPattern(command, dangerousCmdPatterns);
   if (!matchedPattern) {
     return false;
   }
-
   // 强制禁止命中时，除了返回 true 给执行层拦截，还会把模板记进当前会话黑名单，供后续 prompt 注入和二次预拦截复用。
   bashBlacklistStore.rememberBlockedPattern(matchedPattern, command);
   return true;
@@ -130,8 +129,8 @@ export const checkCommandPermissionRules = (toolName: string, params: Record<str
     return "";
   }
 
-  policy.preflight?.(params);
   policy.sandbox?.(params);
+  policy.preflight?.(params);
 
   for (const rule of policy.confirm || []) {
     if (rule.check(params)) {

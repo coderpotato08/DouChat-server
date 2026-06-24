@@ -5,13 +5,19 @@ import { buildBashBlacklistSystemPrompt } from "../permission";
 import { registerBaseTools } from "../tools/baseTools";
 import { registerTodoTools } from "../tools/TodoManager/index";
 import {
+  AgentHookCallback,
+  AgentHookEventName,
+  AgentStopReason,
   ChatCompletionBaseParams,
   EnvConfig,
   EventHandler,
   FINAL_MESSAGE,
   LlmProviderName,
+  StopHookContext,
   SYSTEM_PROMPT,
+  UserPromptSubmitHookContext,
 } from "../types/agent";
+import { HookManager } from "./hook-manager";
 import { LlmService } from "./llm-service";
 import { ToolManager } from "./tool-manager";
 
@@ -31,13 +37,15 @@ export function getMainAgent(): MainAgent {
   return mainAgentInstance;
 }
 export class MainAgent {
+  private readonly hookManager: HookManager;
   private llmService: LlmService;
   private toolManager: ToolManager;
   private streamHandler: StreamHandler;
 
   constructor() {
-    this.toolManager = new ToolManager();
+    this.hookManager = new HookManager();
     this.streamHandler = new StreamHandler();
+    this.toolManager = new ToolManager(this.hookManager, this.streamHandler);
     this.llmService = new LlmService();
     // 初始化工具
     try {
@@ -45,6 +53,13 @@ export class MainAgent {
     } catch (error) {
       console.error("❗️工具初始化失败:", error);
     }
+  }
+
+  public registerHooks<TEventName extends AgentHookEventName>(
+    event: TEventName,
+    callback: AgentHookCallback<TEventName>,
+  ): void {
+    this.hookManager.registerHooks(event, callback);
   }
 
   public buildCompletionOptions(agentConfig: EnvConfig["openAI"]) {
@@ -66,10 +81,14 @@ export class MainAgent {
     requestId: string,
     userId: string,
     message: string,
-    llmProvider: LlmProviderName,
+    modelProvider: LlmProviderName,
     streamHandler?: EventHandler,
   ) {
-    const { client: agentClient, config: agentConfig } = this.llmService.getClientBundle(llmProvider);
+    const { client: agentClient, config: agentConfig } = this.llmService.getClientBundle(modelProvider);
+    // agent loop 终止原因
+    let stopReason: AgentStopReason = "completed";
+    // agent loop 异常终止错误
+    let stopError: Error | undefined;
     let reachedNoToolRound = false;
     streamHandler?.onContentStart?.();
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
@@ -82,13 +101,20 @@ export class MainAgent {
       ...this.buildCompletionOptions(agentConfig),
     };
     const maxToolRounds = 20;
+    const userPromptSubmitContext: UserPromptSubmitHookContext = {
+      requestId,
+      userId,
+      modelProvider,
+      prompt: message,
+    };
+    await this.hookManager.triggerHooks("UserPromptSubmit", userPromptSubmitContext);
     messageList.push({
       role: "user",
       content: message,
     });
     // agent looping
     if (streamHandler) {
-      this.toolManager.setEventHandler(streamHandler);
+      this.streamHandler.setEventHandler(streamHandler);
     }
     streamHandler?.onThinkingStart?.();
     for (let round = 0; round < maxToolRounds; round++) {
@@ -105,24 +131,25 @@ export class MainAgent {
         messageList.push(message);
         if (finish_reason === "stop") {
           reachedNoToolRound = true;
+          stopReason = "stop";
           break;
         }
         for (const tool of toolCalls) {
           if (tool.type !== "function") {
             continue;
           }
-          streamHandler?.onToolUseStart?.(tool.function.name, tool.id, tool.function.arguments);
           const toolResult = await this.toolManager.executeToolHandler(
+            requestId,
+            userId,
+            modelProvider,
             tool.id,
             tool.function.name,
             tool.function.arguments,
           );
-          const outputStr = JSON.stringify(toolResult.output);
-          streamHandler?.onToolUseDone?.(tool.function.name, tool.id, outputStr);
           messageList.push({
             role: "tool",
             tool_call_id: tool.id,
-            content: outputStr,
+            content: JSON.stringify(toolResult.output),
           });
         }
       } catch (error) {
@@ -133,6 +160,7 @@ export class MainAgent {
 
     if (!reachedNoToolRound) {
       // 达到最大工具调用轮次
+      stopReason = "max_tool_rounds";
     }
     streamHandler?.onThinkingDone?.();
 
@@ -159,8 +187,20 @@ export class MainAgent {
       }
       streamHandler?.onContentDone?.();
     } catch (error) {
+      stopReason = "error";
+      stopError = error as Error;
       streamHandler?.onError?.(error as Error);
       throw error;
+    } finally {
+      const stopContext: StopHookContext = {
+        requestId,
+        userId,
+        modelProvider,
+        prompt: message,
+        reason: stopReason,
+        error: stopError,
+      };
+      await this.hookManager.triggerHooks("Stop", stopContext);
     }
   }
 
