@@ -13,17 +13,15 @@ import { ToolExecutionResponse } from "../types/tools";
 import { HookManager } from "./hook-manager";
 
 export const DEFAULT_ALLOW_TOOLS = [
-  "get_message_records",
-  "search_friends_markdown",
   "safe_path",
   "run_bash",
   "run_read",
   "run_write",
   "todo",
-  "task_create",
-  "task_get",
-  "task_list",
-  "task_update",
+  // "task_create",
+  // "task_get",
+  // "task_list",
+  // "task_update",
 ];
 
 type RegisteredToolConfig = {

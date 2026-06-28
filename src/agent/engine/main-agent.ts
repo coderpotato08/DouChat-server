@@ -18,9 +18,7 @@ import {
   EventHandler,
   FINAL_MESSAGE,
   LlmProviderName,
-  StopHookContext,
   SYSTEM_PROMPT,
-  UserPromptSubmitHookContext,
 } from "../types/agent";
 import { HookManager } from "./hook-manager";
 import { LlmService } from "./llm-service";
@@ -106,11 +104,15 @@ export class MainAgent {
     // 在进入主循环前先做一次轻量复杂度分析，用于约束本轮回答的工具偏好和循环预算。
     const complexityResult = await complexityAnalyze(message);
     const routeConfig = COMPLEXITY_ROUTE_CONFIG_MAP[complexityResult.routeTarget];
+    // loop 轮询次数
+    let loopRound = 0;
     // agent loop 终止原因
     let stopReason: AgentStopReason = "completed";
     // agent loop 异常终止错误
     let stopError: Error | undefined;
     let reachedNoToolRound = false;
+    // 统一上下文信息
+    const agentContext = { requestId, userId, modelProvider };
     streamHandler?.onContentStart?.();
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
@@ -124,23 +126,71 @@ export class MainAgent {
     };
     // 非 agent_loop 路由下压低工具轮次，避免简单问题进入冗长的工具循环。
     const maxToolRounds = routeConfig.maxLoopLimit;
-    const userPromptSubmitContext: UserPromptSubmitHookContext = {
-      requestId,
-      userId,
-      modelProvider,
-      prompt: message,
-    };
-    await this.hookManager.triggerHooks("UserPromptSubmit", userPromptSubmitContext);
+    await this.hookManager.triggerHooks("UserPromptSubmit", { ...agentContext, prompt: message });
     messageList.push({
       role: "user",
       content: message,
     });
-    // agent looping
     if (streamHandler) {
       this.streamHandler.setEventHandler(streamHandler);
     }
-    streamHandler?.onThinkingStart?.();
-    for (let round = 0; round < maxToolRounds; round++) {
+    // 首轮loop
+    if (loopRound < maxToolRounds) {
+      let firstRoundContent = "";
+      let firstRoundFinishReason: OpenAI.Chat.Completions.ChatCompletionChunk.Choice["finish_reason"] = null;
+
+      streamHandler?.onThinkingStart?.();
+      try {
+        const firstRoundStream = await agentClient.chat.completions.create({
+          ...baseConfig,
+          stream: true,
+          messages: messageList,
+        });
+
+        for await (const chunk of firstRoundStream) {
+          const choice = chunk.choices?.[0];
+          if (!choice) {
+            continue;
+          }
+          firstRoundFinishReason = choice.finish_reason ?? firstRoundFinishReason;
+          const delta = choice.delta;
+          const content = delta?.content || (delta as any)?.reasoning_content;
+          if (content) {
+            process.stdout.write(content);
+            firstRoundContent += content;
+            streamHandler?.onThinkingDelta?.(content);
+          }
+        }
+        process.stdout.write("\n");
+        streamHandler?.onContentDone?.();
+
+        const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
+          role: "assistant",
+          content: firstRoundContent || null,
+        };
+        messageList.push(assistantMessage);
+        loopRound += 1;
+
+        if (firstRoundFinishReason === "stop") {
+          reachedNoToolRound = true;
+          stopReason = "stop";
+          return;
+        }
+      } catch (error) {
+        streamHandler?.onError?.(error as Error);
+        throw error;
+      } finally {
+        streamHandler?.onThinkingDone?.();
+        await this.hookManager.triggerHooks("Stop", {
+          ...agentContext,
+          prompt: message,
+          reason: stopReason,
+          error: stopError,
+        });
+      }
+    }
+
+    while (!reachedNoToolRound && loopRound < maxToolRounds) {
       // 调用 openai api
       try {
         const completion = await agentClient.chat.completions.create({
@@ -152,6 +202,7 @@ export class MainAgent {
         const { message, finish_reason } = assistantResponse;
         const toolCalls = message?.tool_calls || [];
         messageList.push(message);
+        loopRound += 1;
         if (finish_reason === "stop") {
           reachedNoToolRound = true;
           stopReason = "stop";
@@ -184,13 +235,11 @@ export class MainAgent {
     if (!reachedNoToolRound) {
       // 达到最大工具调用轮次
       stopReason = "max_tool_rounds";
+      messageList.push({
+        role: "user",
+        content: FINAL_MESSAGE,
+      });
     }
-    streamHandler?.onThinkingDone?.();
-
-    messageList.push({
-      role: "user",
-      content: FINAL_MESSAGE,
-    });
 
     let stream: Awaited<ReturnType<typeof agentClient.chat.completions.create>>;
     try {
@@ -209,22 +258,21 @@ export class MainAgent {
           streamHandler?.onContentDelta?.(delta);
         }
       }
+      process.stdout.write("\n");
       streamHandler?.onContentDone?.();
+      console.log("messageList", messageList);
     } catch (error) {
       stopReason = "error";
       stopError = error as Error;
       streamHandler?.onError?.(error as Error);
       throw error;
     } finally {
-      const stopContext: StopHookContext = {
-        requestId,
-        userId,
-        modelProvider,
+      await this.hookManager.triggerHooks("Stop", {
+        ...agentContext,
         prompt: message,
         reason: stopReason,
         error: stopError,
-      };
-      await this.hookManager.triggerHooks("Stop", stopContext);
+      });
     }
   }
 

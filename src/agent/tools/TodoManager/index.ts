@@ -125,7 +125,7 @@ export const registerTodoTools = (): RegisteredTool[] => {
 
   const todo: RegisteredTool = {
     name: "todo",
-    description: "Rewrite the current session plan for multi-step work.",
+    description: "重写当前会话的任务计划，用于拆解和跟踪多步骤工作进度。",
     parameters: {
       items: z
         .array(
