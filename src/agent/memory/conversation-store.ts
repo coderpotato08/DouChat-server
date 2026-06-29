@@ -21,6 +21,8 @@ import {
   buildFrontendSessionData,
 } from "./formatters/frontend-formatter";
 import type { FrontendBaseMsg, FrontendChatRound } from "./formatters/frontend-formatter";
+import { MessageRole } from "./constants";
+import { SystemLogger } from "../../console";
 
 // ==================== 类型定义 ====================
 
@@ -162,6 +164,20 @@ export class ConversationStore {
     const llmItem = formatToLLMMessage(dbEntity, false);
     const frontendItem = formatToFrontendMessage(dbEntity);
 
+    // 日志：消息写入
+    SystemLogger.agent()
+      .storeAppendMessage({
+        sessionId,
+        requestId,
+        messageId: dbEntity.messageId,
+        role: dbEntity.role,
+        sortIndex: dbEntity.sortIndex,
+        contentPreview: (dbEntity.content ?? "").slice(0, 100),
+        hasToolCalls: !!(dbEntity.tool_calls && dbEntity.tool_calls.length > 0),
+        toolCallId: dbEntity.tool_call_id,
+      })
+      .printLog();
+
     return { dbEntity, llmItem, frontendItem };
   }
 
@@ -182,11 +198,14 @@ export class ConversationStore {
     maxToken?: number,
     useCompressed: boolean = true,
   ): Promise<RawLLMMessage[]> {
-    let allMsgs = await this.repo.getSessionAllMessages(sessionId);
+    const allMsgs = await this.repo.getSessionAllMessages(sessionId);
+    const beforeCount = allMsgs.length;
+
+    let finalMsgs = allMsgs;
 
     // 兜底截断
     if (maxToken) {
-      allMsgs = ContextTruncator.truncate(
+      finalMsgs = ContextTruncator.truncate(
         allMsgs,
         maxToken,
         this.config.compress.reserveLatestRounds,
@@ -194,7 +213,45 @@ export class ConversationStore {
     }
 
     // 格式化
-    return batchFormatToLLMContext(allMsgs, useCompressed);
+    const context = batchFormatToLLMContext(finalMsgs, useCompressed);
+
+    // 日志：LLM 上下文构建
+    const systemCount = finalMsgs.filter((m) => m.role === MessageRole.SYSTEM).length;
+    const chatCount = finalMsgs.length - systemCount;
+    const compressedCount = finalMsgs.filter((m) => m.isCompressed).length;
+
+    // 估算 Token（简易启发式）
+    const estimatedTokens = finalMsgs.reduce(
+      (sum, m) => sum + Math.ceil((m.content ?? "").length / 4),
+      0,
+    );
+
+    SystemLogger.agent()
+      .storeLLMContext({
+        sessionId,
+        totalMessages: allMsgs.length,
+        useCompressed,
+        maxToken,
+        truncated: finalMsgs.length < beforeCount,
+        beforeTruncate: beforeCount,
+        afterTruncate: finalMsgs.length,
+        estimatedTokens,
+        systemCount,
+        chatCount,
+        compressedCount,
+      })
+      .printLog();
+
+    // 原生 console.log 输出暴露给 LLM 的完整消息内容
+    console.log(
+      `\n========== LLM Context [session=${sessionId}] — ${context.length} messages ==========`,
+    );
+    console.log(JSON.stringify(context, null, 2));
+    console.log(
+      `========== LLM Context End [session=${sessionId}] ==========\n`,
+    );
+
+    return context;
   }
 
   /**
@@ -204,7 +261,20 @@ export class ConversationStore {
    */
   async getFrontendSessionData(sessionId: string): Promise<FrontendChatRound[]> {
     const allMsgs = await this.repo.getSessionAllMessages(sessionId);
-    return buildFrontendSessionData(allMsgs);
+    const rounds = buildFrontendSessionData(allMsgs);
+
+    // 日志：前端数据构建
+    const compressedCount = allMsgs.filter((m) => m.isCompressed).length;
+    SystemLogger.agent()
+      .storeFrontendData({
+        sessionId,
+        totalMessages: allMsgs.length,
+        totalRounds: rounds.length,
+        compressedCount,
+      })
+      .printLog();
+
+    return rounds;
   }
 
   /**
@@ -220,7 +290,22 @@ export class ConversationStore {
       sessionId,
       requestId,
     );
-    return buildFrontendChatRound(roundMsgs, requestId, sessionId);
+    const round = buildFrontendChatRound(roundMsgs, requestId, sessionId);
+
+    // 日志：单轮查询
+    const hasToolChain = roundMsgs.some(
+      (m) => m.role === MessageRole.TOOL || (m.tool_calls && m.tool_calls.length > 0),
+    );
+    SystemLogger.agent()
+      .storeSingleRound({
+        sessionId,
+        requestId,
+        messageCount: roundMsgs.length,
+        hasToolChain,
+      })
+      .printLog();
+
+    return round;
   }
 
   // ==================== 压缩操作 ====================
@@ -265,6 +350,17 @@ export class ConversationStore {
     );
     const lastCompressTime =
       snapshots.length > 0 ? snapshots[0].createTime : undefined;
+
+    // 日志：压缩统计
+    SystemLogger.agent()
+      .storeCompressStats({
+        sessionId,
+        totalMessages,
+        compressedMessages,
+        totalTokenSaved,
+        snapshotCount: snapshots.length,
+      })
+      .printLog();
 
     return {
       sessionId,

@@ -1,5 +1,6 @@
 import { MessageRole } from "./constants";
 import type { ChatMessageEntity } from "./mongo-repo";
+import { SystemLogger } from "../../console";
 
 /**
  * ContextTruncator — 兜底上下文截断器
@@ -87,6 +88,23 @@ export class ContextTruncator {
     // 合并并按 sortIndex 排序（system 在前）
     const result = [...systemMsgs, ...keptTrimmable, ...protectedMsgs];
     result.sort((a, b) => a.sortIndex - b.sortIndex);
+
+    // 当日志：仅在发生实际裁剪时输出
+    if (result.length < messages.length) {
+      const estimatedBefore = ContextTruncator.estimateTokens(messages);
+      const estimatedAfter = ContextTruncator.estimateTokens(result);
+      SystemLogger.agent()
+        .storeTruncate({
+          beforeCount: messages.length,
+          afterCount: result.length,
+          estimatedBefore,
+          estimatedAfter,
+          maxTokenLimit: maxTokens,
+          protectedRounds: protectedRequestIds.size,
+          systemPreserved: true,
+        })
+        .printLog();
+    }
 
     return result;
   }

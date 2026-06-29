@@ -53,3 +53,62 @@ export type AgentSessionErrorPayload = {
   round: number;
   error: unknown;
 };
+
+// ==================== ConversationStore 日志 Payload ====================
+
+export type StoreAppendMessagePayload = {
+  sessionId: string;
+  requestId: string;
+  messageId: string;
+  role: string;
+  sortIndex: number;
+  contentPreview: string;
+  hasToolCalls: boolean;
+  toolCallId?: string | null;
+};
+
+export type StoreLLMContextPayload = {
+  sessionId: string;
+  totalMessages: number;
+  useCompressed: boolean;
+  maxToken?: number;
+  truncated: boolean;
+  beforeTruncate: number;
+  afterTruncate: number;
+  estimatedTokens: number;
+  systemCount: number;
+  chatCount: number;
+  compressedCount: number;
+};
+
+export type StoreTruncatePayload = {
+  beforeCount: number;
+  afterCount: number;
+  estimatedBefore: number;
+  estimatedAfter: number;
+  maxTokenLimit: number;
+  protectedRounds: number;
+  systemPreserved: boolean;
+};
+
+export type StoreFrontendDataPayload = {
+  sessionId: string;
+  totalMessages: number;
+  totalRounds: number;
+  compressedCount: number;
+};
+
+export type StoreSingleRoundPayload = {
+  sessionId: string;
+  requestId: string;
+  messageCount: number;
+  hasToolChain: boolean;
+};
+
+export type StoreCompressStatsPayload = {
+  sessionId: string;
+  totalMessages: number;
+  compressedMessages: number;
+  totalTokenSaved: number;
+  snapshotCount: number;
+};
