@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import { ChatCompletionFunctionTool, ChatCompletionToolChoiceOption } from "openai/resources";
 import { StreamHandler } from "../handlers/stream-handler";
+import { ConversationStore, type AppendMessageInput } from "../memory";
 import { buildBashBlacklistSystemPrompt } from "../permission";
 import {
   COMPLEXITY_ROUTE_CONFIG_MAP,
@@ -44,12 +45,14 @@ export class MainAgent {
   private llmService: LlmService;
   private toolManager: ToolManager;
   private streamHandler: StreamHandler;
+  private conversationStore: ConversationStore;
 
   constructor() {
     this.hookManager = new HookManager();
     this.streamHandler = new StreamHandler();
     this.toolManager = new ToolManager(this.hookManager, this.streamHandler);
     this.llmService = new LlmService();
+    this.conversationStore = new ConversationStore();
     // 初始化工具
     try {
       this.toolManager.registerTools([...registerBaseTools(), ...registerTodoTools()]);
@@ -94,6 +97,7 @@ export class MainAgent {
   }
 
   public async sendThinkingStreamMessage(
+    sessionId: string,
     requestId: string,
     userId: string,
     message: string,
@@ -114,12 +118,45 @@ export class MainAgent {
     // 统一上下文信息
     const agentContext = { requestId, userId, modelProvider };
     streamHandler?.onContentStart?.();
+
+    // === ConversationStore: 加载历史上下文 ===
+    const historyContext = await this.conversationStore.getLLMContext(sessionId);
+    // 过滤掉历史中的旧 system 消息，本轮会重新构建；
+    // RawLLMMessage 的 content 允许 null，需转换为 OpenAI 兼容类型
+    const historyNonSystem = historyContext
+      .filter((m) => m.role !== "system")
+      .map((m) => ({
+        role: m.role,
+        content: m.content,
+        ...(m.tool_calls && { tool_calls: m.tool_calls }),
+        ...(m.tool_call_id && { tool_call_id: m.tool_call_id }),
+      })) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+
+    // 构建本轮 system prompt
+    const systemPromptContent = this.buildSystemPrompt(requestId, complexityResult);
+
+    // messageList = [本轮 system] + [历史非 system 消息] + [本轮 user]
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
       {
         role: "system",
-        content: this.buildSystemPrompt(requestId, complexityResult),
+        content: systemPromptContent,
       },
+      ...historyNonSystem,
     ];
+
+    // 持久化 system 消息
+    await this.conversationStore.appendMessage(
+      {
+        sessionId,
+        requestId,
+        role: "system",
+        content: systemPromptContent,
+        ownerUserId: userId,
+      } as AppendMessageInput,
+      sessionId,
+      requestId,
+    );
+
     const baseConfig: ChatCompletionBaseParams = {
       ...this.buildCompletionOptions(agentConfig),
       temperature: routeConfig.temperature,
@@ -131,6 +168,19 @@ export class MainAgent {
       role: "user",
       content: message,
     });
+
+    // 持久化 user 消息
+    await this.conversationStore.appendMessage(
+      {
+        sessionId,
+        requestId,
+        role: "user",
+        content: message,
+        ownerUserId: userId,
+      } as AppendMessageInput,
+      sessionId,
+      requestId,
+    );
     if (streamHandler) {
       this.streamHandler.setEventHandler(streamHandler);
     }
@@ -171,6 +221,19 @@ export class MainAgent {
         messageList.push(assistantMessage);
         loopRound += 1;
 
+        // 持久化 assistant 消息
+        await this.conversationStore.appendMessage(
+          {
+            sessionId,
+            requestId,
+            role: "assistant",
+            content: firstRoundContent || null,
+            ownerUserId: userId,
+          } as AppendMessageInput,
+          sessionId,
+          requestId,
+        );
+
         if (firstRoundFinishReason === "stop") {
           reachedNoToolRound = true;
           stopReason = "stop";
@@ -203,6 +266,21 @@ export class MainAgent {
         const toolCalls = message?.tool_calls || [];
         messageList.push(message);
         loopRound += 1;
+
+        // 持久化 assistant 消息（含 tool_calls）
+        await this.conversationStore.appendMessage(
+          {
+            sessionId,
+            requestId,
+            role: "assistant",
+            content: message?.content ?? null,
+            tool_calls: message?.tool_calls as unknown as AppendMessageInput["tool_calls"],
+            ownerUserId: userId,
+          } as AppendMessageInput,
+          sessionId,
+          requestId,
+        );
+
         if (finish_reason === "stop") {
           reachedNoToolRound = true;
           stopReason = "stop";
@@ -225,6 +303,20 @@ export class MainAgent {
             tool_call_id: tool.id,
             content: JSON.stringify(toolResult.output),
           });
+
+          // 持久化 tool 消息
+          await this.conversationStore.appendMessage(
+            {
+              sessionId,
+              requestId,
+              role: "tool",
+              content: JSON.stringify(toolResult.output),
+              tool_call_id: tool.id,
+              ownerUserId: userId,
+            } as AppendMessageInput,
+            sessionId,
+            requestId,
+          );
         }
       } catch (error) {
         streamHandler?.onError?.(error as Error);
@@ -239,6 +331,19 @@ export class MainAgent {
         role: "user",
         content: FINAL_MESSAGE,
       });
+
+      // 持久化 FINAL_MESSAGE
+      await this.conversationStore.appendMessage(
+        {
+          sessionId,
+          requestId,
+          role: "user",
+          content: FINAL_MESSAGE,
+          ownerUserId: userId,
+        } as AppendMessageInput,
+        sessionId,
+        requestId,
+      );
     }
 
     let stream: Awaited<ReturnType<typeof agentClient.chat.completions.create>>;
