@@ -1,6 +1,11 @@
 import Router from "koa-router";
-import { agentCompletion, agentPermission, initAgent } from "../controllers/ai/controller";
-import { agentCompletionBodySchema, agentPermissionBodySchema } from "../controllers/ai/validator";
+import { agentCompletion, agentPermission, getSession, initAgent, initSession } from "../controllers/ai/controller";
+import {
+  agentCompletionBodySchema,
+  agentPermissionBodySchema,
+  getSessionBodySchema,
+  initSessionBodySchema,
+} from "../controllers/ai/validator";
 import { approvalTask, startTask } from "../controllers/approvalController";
 import { validateRequest } from "../middleware/validate-request";
 import { createSSESession } from "../utils/sse-utils";
@@ -35,5 +40,15 @@ router.post(
 );
 router.post("/agent/approval/startTask", startTask);
 router.post("/agent/approval/approveTask", approvalTask);
+router.post(
+  "/session/get",
+  validateRequest({ body: getSessionBodySchema }),
+  getSession,
+);
+router.post(
+  "/session/init",
+  validateRequest({ body: initSessionBodySchema }),
+  initSession,
+);
 
 export default router;

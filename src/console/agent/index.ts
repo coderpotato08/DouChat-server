@@ -152,7 +152,7 @@ export default class AgentLog extends BaseLog {
         ? chalk.yellow(` [tool_id=${payload.toolCallId}]`)
         : "";
     return this.withDefaults().appendArgs(
-      [ArgTypeEnum.TEXT, this.formatStoreBadge("STORE MSG")],
+      [ArgTypeEnum.TEXT, this.formatStoreBadge("ADD MSG")],
       [ArgTypeEnum.TEXT, chalk.cyan(`session=${payload.sessionId}`)],
       [ArgTypeEnum.TEXT, chalk.magenta(`req=${payload.requestId}`)],
       [ArgTypeEnum.TEXT, chalk.green(`role=${payload.role}`)],
@@ -172,7 +172,7 @@ export default class AgentLog extends BaseLog {
       ? chalk.cyan(`${payload.maxToken}`)
       : chalk.gray("unlimited");
     return this.withDefaults().appendArgs(
-      [ArgTypeEnum.TEXT, this.formatStoreBadge("STORE CTX")],
+      [ArgTypeEnum.TEXT, this.formatStoreBadge("BUILD CTX")],
       [ArgTypeEnum.TEXT, chalk.cyan(`session=${payload.sessionId}`)],
 
       [ArgTypeEnum.TEXT, `total=${chalk.bold(payload.totalMessages)}`],
@@ -225,7 +225,7 @@ export default class AgentLog extends BaseLog {
   /** 压缩统计 */
   public storeCompressStats = (payload: StoreCompressStatsPayload) => {
     return this.withDefaults().appendArgs(
-      [ArgTypeEnum.TEXT, this.formatStoreBadge("STORE CMP")],
+      [ArgTypeEnum.TEXT, this.formatStoreBadge("CTX COMPRESS")],
       [ArgTypeEnum.TEXT, chalk.cyan(`session=${payload.sessionId}`)],
 
       [ArgTypeEnum.TEXT, `total=${chalk.bold(payload.totalMessages)}`],

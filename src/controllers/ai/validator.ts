@@ -13,5 +13,17 @@ export const agentPermissionBodySchema = z.object({
   allow: z.boolean(),
 });
 
+export const getSessionBodySchema = z.object({
+  sessionId: z.string().trim().min(1, "sessionId不能为空"),
+  userId: z.string().trim().min(1, "userId不能为空"),
+});
+
+export const initSessionBodySchema = z.object({
+  userId: z.string().trim().min(1, "userId不能为空"),
+  modelProvider: z.enum(LLM_PROVIDER_NAMES).default("DOUBAO"),
+});
+
 export type AgentCompletionRequestBody = z.output<typeof agentCompletionBodySchema>;
 export type AgentPermissionRequestBody = z.output<typeof agentPermissionBodySchema>;
+export type GetSessionRequestBody = z.output<typeof getSessionBodySchema>;
+export type InitSessionRequestBody = z.output<typeof initSessionBodySchema>;

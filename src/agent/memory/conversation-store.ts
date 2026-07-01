@@ -381,13 +381,6 @@ export class ConversationStore {
     return this.repo.clearSession(sessionId);
   }
 
-  /**
-   * 创建新会话，返回 UUIDv7 格式的 sessionId
-   */
-  createNewSession(): string {
-    return IdGenerator.generate("session");
-  }
-
   // ==================== 配置管理 ====================
 
   /**
