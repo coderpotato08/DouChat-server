@@ -14,4 +14,13 @@ export const formatMessageText = (content: any, type: MessageTypeEnum): string =
   return ""
 }
 
+// 剥离 assistant 消息中的 <thinking>...</thinking> 思考过程标签，剥离后为空则返回 null
+export const stripThinkingTags = (content: string | null): string | null => {
+  if (!content) {
+    return content;
+  }
+  const stripped = content.replace(/<think>[\s\S]*?<\/think>/gi, "").trim();
+  return stripped.length > 0 ? stripped : null;
+}
+
 export const sleep = (time: number) => new Promise((resolve) => setTimeout(resolve, time)) //   sleep

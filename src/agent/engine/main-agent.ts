@@ -123,6 +123,9 @@ export class MainAgent {
     streamHandler?: EventHandler,
   ) {
     const { client: agentClient, config: agentConfig } = this.llmService.getClientBundle(modelProvider);
+    if (streamHandler) {
+      this.streamHandler.setEventHandler(streamHandler);
+    }
     // 在进入主循环前先做一次轻量复杂度分析，用于约束本轮回答的工具偏好和循环预算。
     const complexityResult = await complexityAnalyze(message);
     const routeConfig = COMPLEXITY_ROUTE_CONFIG_MAP[complexityResult.routeTarget];
@@ -202,9 +205,6 @@ export class MainAgent {
       sessionId,
       requestId,
     );
-    if (streamHandler) {
-      this.streamHandler.setEventHandler(streamHandler);
-    }
     // 首轮loop
     if (loopRound < maxToolRounds) {
       let firstRoundContent = "";

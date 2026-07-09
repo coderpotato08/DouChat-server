@@ -17,6 +17,7 @@ import {
   GetSessionRequestBody,
   InitSessionRequestBody,
 } from "./validator";
+import { stripThinkingTags } from "../../utils/common-utils";
 
 export const initAgent = async (ctx: Context) => {
   try {
@@ -115,15 +116,6 @@ export const getSessionList = async (ctx: Context) => {
   );
 };
 
-// 剥离 assistant 消息中的 <thinking>...</thinking> 思考过程标签，剥离后为空则返回 null
-function stripThinkingTags(content: string | null): string | null {
-  if (!content) {
-    return content;
-  }
-  const stripped = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "").trim();
-  return stripped.length > 0 ? stripped : null;
-}
-
 /**
  * 获取指定会话的全部消息
  * POST /ai/session/get
@@ -166,7 +158,7 @@ export const getSession = async (ctx: Context) => {
   // 3. 结果过滤：剔除不应展示给用户的内部过程消息，避免前端出现空气泡
   //    - 纯 tool_calls 的 assistant（无展示文本）
   //    - 最大轮次中止时注入的 user 提示（FINAL_MESSAGE）
-  //    - 剥离 <thinking> 后内容为空的 assistant（纯思考过程）
+  //    - 剥离 <think> 后内容为空的 assistant（纯思考过程）
   const messages = rawMessages
     .map((msg) => ({ ...msg, content: stripThinkingTags(msg.content) }))
     .filter((msg) => {
