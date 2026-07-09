@@ -3,6 +3,7 @@ import { v4 as uuidv4 } from "uuid";
 import { getMainAgent, initMainAgent } from "../../agent/engine/main-agent";
 import { IdGenerator } from "../../agent/memory/id-generator";
 import { bashBlacklistStore, permissionStore } from "../../agent/permission";
+import { FINAL_MESSAGE } from "../../agent/types/agent";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../../constant/errorData";
 import { getValidatedRequestData } from "../../middleware/validate-request";
 import AiSessionModel from "../../models/aiSessionModel";
@@ -12,6 +13,7 @@ import { createSSESession } from "../../utils/sse-utils";
 import {
   AgentCompletionRequestBody,
   AgentPermissionRequestBody,
+  GetSessionListRequestBody,
   GetSessionRequestBody,
   InitSessionRequestBody,
 } from "./validator";
@@ -84,16 +86,55 @@ export const agentPermission = async (ctx: Context) => {
 };
 
 /**
+ * 获取某个用户所属的所有会话列表
+ * POST /ai/session/list
+ */
+export const getSessionList = async (ctx: Context) => {
+  const { body } = getValidatedRequestData<GetSessionListRequestBody>(ctx);
+
+  // status 不传时默认排除软删除；传单值精确匹配，传数组用 $in
+  const filter: Record<string, unknown> = { userId: body.userId };
+  if (body.status === undefined) {
+    filter.status = { $eq: "active" };
+  } else if (Array.isArray(body.status)) {
+    filter.status = { $in: body.status };
+  } else {
+    filter.status = body.status;
+  }
+
+  const sessions = await AiSessionModel.find(filter)
+    .sort({ updatedAt: -1 })
+    .lean();
+
+  ctx.body = createRes(
+    $SuccessCode,
+    {
+      sessions,
+    },
+    "",
+  );
+};
+
+// 剥离 assistant 消息中的 <thinking>...</thinking> 思考过程标签，剥离后为空则返回 null
+function stripThinkingTags(content: string | null): string | null {
+  if (!content) {
+    return content;
+  }
+  const stripped = content.replace(/<thinking>[\s\S]*?<\/thinking>/gi, "").trim();
+  return stripped.length > 0 ? stripped : null;
+}
+
+/**
  * 获取指定会话的全部消息
  * POST /ai/session/get
  */
 export const getSession = async (ctx: Context) => {
   const { body } = getValidatedRequestData<GetSessionRequestBody>(ctx);
 
-  // 1. 校验会话是否存在且属于该用户
+  // 1. 校验会话是否存在且属于该用户（排除软删除）
   const session = await AiSessionModel.findOne({
     sessionId: body.sessionId,
-    isDeleted: false,
+    status: { $ne: "deleted" },
   }).lean();
 
   if (!session) {
@@ -114,12 +155,37 @@ export const getSession = async (ctx: Context) => {
     return;
   }
 
-  // 2. 查询会话下全部消息，按 sortIndex 升序
-  const messages = await AiSessionMessageModel.find({
+  // 2. 查询会话消息：DB 层排除 system（系统提示词）和 tool（工具结果）
+  const rawMessages = await AiSessionMessageModel.find({
     sessionId: body.sessionId,
+    role: { $nin: ["system", "tool"] },
   })
     .sort({ sortIndex: 1 })
     .lean();
+
+  // 3. 结果过滤：剔除不应展示给用户的内部过程消息，避免前端出现空气泡
+  //    - 纯 tool_calls 的 assistant（无展示文本）
+  //    - 最大轮次中止时注入的 user 提示（FINAL_MESSAGE）
+  //    - 剥离 <thinking> 后内容为空的 assistant（纯思考过程）
+  const messages = rawMessages
+    .map((msg) => ({ ...msg, content: stripThinkingTags(msg.content) }))
+    .filter((msg) => {
+      if (
+        msg.role === "assistant" &&
+        Array.isArray(msg.tool_calls) &&
+        msg.tool_calls.length > 0 &&
+        !msg.content
+      ) {
+        return false;
+      }
+      if (msg.role === "user" && msg.content === FINAL_MESSAGE) {
+        return false;
+      }
+      if (msg.role === "assistant" && !msg.content) {
+        return false;
+      }
+      return true;
+    });
 
   ctx.body = createRes(
     $SuccessCode,
@@ -157,7 +223,6 @@ export const initSession = async (ctx: Context) => {
     modelProvider: body.modelProvider,
     messageCount: 0,
     lastMessagePreview: "",
-    isDeleted: false,
     deletedAt: null,
   });
 

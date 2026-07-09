@@ -1,9 +1,10 @@
 import Router from "koa-router";
-import { agentCompletion, agentPermission, getSession, initAgent, initSession } from "../controllers/ai/controller";
+import { agentCompletion, agentPermission, getSession, getSessionList, initAgent, initSession } from "../controllers/ai/controller";
 import {
   agentCompletionBodySchema,
   agentPermissionBodySchema,
   getSessionBodySchema,
+  getSessionListBodySchema,
   initSessionBodySchema,
 } from "../controllers/ai/validator";
 import { approvalTask, startTask } from "../controllers/approvalController";
@@ -44,6 +45,11 @@ router.post(
   "/session/get",
   validateRequest({ body: getSessionBodySchema }),
   getSession,
+);
+router.post(
+  "/session/list",
+  validateRequest({ body: getSessionListBodySchema }),
+  getSessionList,
 );
 router.post(
   "/session/init",

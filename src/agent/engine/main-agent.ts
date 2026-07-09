@@ -25,6 +25,13 @@ import { HookManager } from "./hook-manager";
 import { LlmService } from "./llm-service";
 import { ToolManager } from "./tool-manager";
 
+// 在标准 ChatCompletion 参数之上，按 provider 叠加 thinking 开关字段：
+// QWEN 用顶层 enable_thinking:boolean；DOUBAO 用 thinking:{type:"enabled"|"disabled"}。
+type ThinkingCapableParams = ChatCompletionBaseParams & {
+  enable_thinking?: boolean;
+  thinking?: { type: "enabled" | "disabled" };
+};
+
 let mainAgentInstance: MainAgent | null = null;
 
 export function initMainAgent(): MainAgent {
@@ -83,13 +90,24 @@ export class MainAgent {
     };
   }
 
+  // 按 provider 构建大模型 thinking 开关参数，needThinking 来自复杂度分析的 routeTarget 推导。
+  private buildThinkingParam(
+    provider: LlmProviderName,
+    needThinking: boolean,
+  ): { enable_thinking: boolean } | { thinking: { type: "enabled" | "disabled" } } {
+    if (provider === "QWEN") {
+      return { enable_thinking: needThinking };
+    }
+    return { thinking: { type: needThinking ? "enabled" : "disabled" } };
+  }
+
   // 将主 agent 的基础指令、复杂度路由结果和权限约束统一收口到同一条 system prompt。
   private buildSystemPrompt(requestId: string, complexityResult: ComplexityAnalyzeResult): string {
     const routeConfig = COMPLEXITY_ROUTE_CONFIG_MAP[complexityResult.routeTarget];
 
     return [
       SYSTEM_PROMPT,
-      "Complexity routing result:",
+      "意图识别路由结果:",
       JSON.stringify(complexityResult),
       routeConfig.extraPrompt,
       buildBashBlacklistSystemPrompt(requestId),
@@ -108,6 +126,8 @@ export class MainAgent {
     // 在进入主循环前先做一次轻量复杂度分析，用于约束本轮回答的工具偏好和循环预算。
     const complexityResult = await complexityAnalyze(message);
     const routeConfig = COMPLEXITY_ROUTE_CONFIG_MAP[complexityResult.routeTarget];
+    // 按 provider + 复杂度推导结果，构建本轮 thinking 开关参数
+    const thinkingParam = this.buildThinkingParam(modelProvider, complexityResult.needThinking);
     // loop 轮询次数
     let loopRound = 0;
     // agent loop 终止原因
@@ -157,8 +177,9 @@ export class MainAgent {
       requestId,
     );
 
-    const baseConfig: ChatCompletionBaseParams = {
+    const baseConfig: ThinkingCapableParams = {
       ...this.buildCompletionOptions(agentConfig),
+      ...thinkingParam,
       temperature: routeConfig.temperature,
     };
     // 非 agent_loop 路由下压低工具轮次，避免简单问题进入冗长的工具循环。
@@ -195,7 +216,7 @@ export class MainAgent {
           ...baseConfig,
           stream: true,
           messages: messageList,
-        });
+        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming);
 
         for await (const chunk of firstRoundStream) {
           const choice = chunk.choices?.[0];
@@ -208,11 +229,10 @@ export class MainAgent {
           if (content) {
             process.stdout.write(content);
             firstRoundContent += content;
-            streamHandler?.onThinkingDelta?.(content);
+            streamHandler?.onContentDelta?.(content);
           }
         }
         process.stdout.write("\n");
-        streamHandler?.onContentDone?.();
 
         const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
           role: "assistant",
@@ -260,7 +280,7 @@ export class MainAgent {
           ...baseConfig,
           stream: false,
           messages: messageList,
-        });
+        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
         const assistantResponse = completion?.choices[0];
         const { message, finish_reason } = assistantResponse;
         const toolCalls = message?.tool_calls || [];
@@ -353,7 +373,8 @@ export class MainAgent {
         temperature: routeConfig.temperature,
         stream: true,
         messages: messageList,
-      });
+        ...thinkingParam,
+      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming);
       let finalContent = "";
       for await (const chunk of stream) {
         const delta = chunk.choices?.[0]?.delta?.content;

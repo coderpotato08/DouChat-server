@@ -3,7 +3,7 @@ import { Schema, model } from "mongoose";
 // ==================== 常量定义 ====================
 
 /** 会话状态 */
-export const AI_SESSION_STATUSES = ["active", "archived"] as const;
+export const AI_SESSION_STATUSES = ["active", "archived", "deleted"] as const;
 export type AiSessionStatus = (typeof AI_SESSION_STATUSES)[number];
 
 // ==================== 文档接口 ====================
@@ -16,7 +16,7 @@ export interface AiSessionDocument {
   userId: string;
   /** 会话标题（AI 生成，截取首条 prompt 摘要） */
   title: string;
-  /** 会话状态：active=活跃, archived=归档 */
+  /** 会话状态：active=活跃, archived=归档, deleted=软删除 */
   status: AiSessionStatus;
   /** 使用的模型提供商 */
   modelProvider: string;
@@ -24,9 +24,7 @@ export interface AiSessionDocument {
   messageCount: number;
   /** 最后一条消息预览（前端列表展示用） */
   lastMessagePreview: string;
-  /** 软删除标记 */
-  isDeleted: boolean;
-  /** 删除时间 */
+  /** 软删除时间（status 为 deleted 时记录） */
   deletedAt: Date | null;
   /** 创建时间 */
   createdAt: Date;
@@ -75,10 +73,6 @@ const AiSessionSchema = new Schema<AiSessionDocument>(
       default: "",
       maxlength: 200,
     },
-    isDeleted: {
-      type: Boolean,
-      default: false,
-    },
     deletedAt: {
       type: Date,
       default: null,
@@ -96,8 +90,8 @@ const AiSessionSchema = new Schema<AiSessionDocument>(
 // 按 sessionId 精确查找
 AiSessionSchema.index({ sessionId: 1 }, { unique: true });
 
-// 按用户查询会话列表（排除已删除，按更新时间倒序）
-AiSessionSchema.index({ userId: 1, isDeleted: 1, updatedAt: -1 });
+// 按用户查询会话列表（按状态过滤，按更新时间倒序）
+AiSessionSchema.index({ userId: 1, status: 1, updatedAt: -1 });
 
 // ==================== 导出 ====================
 

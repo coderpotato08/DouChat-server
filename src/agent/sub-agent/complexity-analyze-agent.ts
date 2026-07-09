@@ -21,9 +21,14 @@ const DEFAULT_COMPLEXITY_ANALYZE_RESULT = {
   routeTarget: "direct_answer",
   judgeFactors: ["空输入"],
   tokenCost: 0,
-} satisfies z.infer<typeof complexityAnalyzeResultSchema>;
+  needThinking: false,
+} satisfies ComplexityAnalyzeResult;
 
-export type ComplexityAnalyzeResult = z.infer<typeof complexityAnalyzeResultSchema>;
+export type ComplexityAnalyzeResult = z.infer<typeof complexityAnalyzeResultSchema> & {
+  // 是否需要开启大模型 thinking，由 routeTarget 确定性推导：
+  // direct_answer → false；agent_loop / light_thinking → true
+  needThinking: boolean;
+};
 export type ComplexityLevel = ComplexityAnalyzeResult["complexityLevel"];
 export type ComplexityRouteTarget = ComplexityAnalyzeResult["routeTarget"];
 
@@ -68,9 +73,7 @@ const COMPLEXITY_ANALYZE_SYSTEM_PROMPT = `你是一个复杂度分析子代理�
 11. 只输出单个 JSON 对象，不要输出 Markdown，不要输出代码块，不要输出额外说明。`;
 
 type NonStreamingCompletionParams = OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming & {
-  extra_body?: {
-    enable_thinking?: boolean;
-  };
+  enable_thinking?: boolean;
 };
 
 class ComplexityAnalyzeAgent {
@@ -98,9 +101,7 @@ class ComplexityAnalyzeAgent {
         temperature: 0.1,
         top_p: 0.1,
         response_format: zodResponseFormat(complexityAnalyzeResultSchema, "complexity_analyze_result"),
-        extra_body: {
-          enable_thinking: false,
-        },
+        enable_thinking: false,
         messages: [
           {
             role: "system",
@@ -117,7 +118,11 @@ class ComplexityAnalyzeAgent {
       );
 
       const rawContent = this.getMessageContent(completion.choices[0]?.message?.content);
-      const result = this.parseResult(rawContent);
+      const parsed = this.parseResult(rawContent);
+      const result: ComplexityAnalyzeResult = {
+        ...parsed,
+        needThinking: parsed.routeTarget !== "direct_answer",
+      };
       this.printIntentRecognizedLog(result, startedAt, true);
       return result;
     } catch(error) {
@@ -172,7 +177,7 @@ class ComplexityAnalyzeAgent {
     return "";
   }
 
-  private parseResult(rawContent: string): ComplexityAnalyzeResult {
+  private parseResult(rawContent: string): z.infer<typeof complexityAnalyzeResultSchema> {
     if (!rawContent) {
       throw new Error("ComplexityAnalyzeAgent returned empty content.");
     }
