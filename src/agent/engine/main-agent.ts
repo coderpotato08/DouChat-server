@@ -114,6 +114,12 @@ export class MainAgent {
     ].join("\n");
   }
 
+  /**
+   * 非末轮（工具决策轮）非流式，末轮（最终答案）真实流式：
+   *   复杂度分析 -> 准备上下文 -> [非流式工具循环：仅模型调工具时继续，不调工具则丢弃草稿 break]
+   *   -> (达到最大轮次则注入 FINAL_MESSAGE) -> 末轮流式拿最终答案
+   * Stop hook 仅在最终 finally 触发一次；最终答案落库。
+   */
   public async sendThinkingStreamMessage(
     sessionId: string,
     requestId: string,
@@ -121,30 +127,145 @@ export class MainAgent {
     message: string,
     modelProvider: LlmProviderName,
     streamHandler?: EventHandler,
-  ) {
+  ): Promise<void> {
     const { client: agentClient, config: agentConfig } = this.llmService.getClientBundle(modelProvider);
     if (streamHandler) {
       this.streamHandler.setEventHandler(streamHandler);
     }
-    // 在进入主循环前先做一次轻量复杂度分析，用于约束本轮回答的工具偏好和循环预算。
+
+    // 复杂度分析 -> 路由配置 / thinking 开关 / 工具轮次预算
     const complexityResult = await complexityAnalyze(message);
     const routeConfig = COMPLEXITY_ROUTE_CONFIG_MAP[complexityResult.routeTarget];
-    // 按 provider + 复杂度推导结果，构建本轮 thinking 开关参数
     const thinkingParam = this.buildThinkingParam(modelProvider, complexityResult.needThinking);
-    // loop 轮询次数
-    let loopRound = 0;
-    // agent loop 终止原因
-    let stopReason: AgentStopReason = "completed";
-    // agent loop 异常终止错误
-    let stopError: Error | undefined;
-    let reachedNoToolRound = false;
-    // 统一上下文信息
+    const maxToolRounds = routeConfig.maxLoopLimit;
+    const baseConfig: ThinkingCapableParams = {
+      ...this.buildCompletionOptions(agentConfig),
+      ...thinkingParam,
+      temperature: routeConfig.temperature,
+    };
     const agentContext = { requestId, userId, modelProvider };
+
+    // 构建上下文（历史 + 本轮 system/user）并持久化 system、user
+    const messageList = await this.prepareContext(sessionId, requestId, userId, message, complexityResult);
+    await this.hookManager.triggerHooks("UserPromptSubmit", { ...agentContext, prompt: message });
+
+    let stopReason: AgentStopReason = "completed";
+    let stopError: Error | undefined;
+    let reachedAnswer = false;
+
+    streamHandler?.onThinkingStart?.();
     streamHandler?.onContentStart?.();
 
-    // === ConversationStore: 加载历史上下文 ===
+    try {
+      // === 非流式工具循环：只在模型调用工具时继续；模型不再调工具则丢弃本轮草稿，转末轮流式 ===
+      let loopRound = 0;
+      while (loopRound < maxToolRounds) {
+        const completion = await agentClient.chat.completions.create({
+          ...baseConfig,
+          stream: false,
+          messages: messageList,
+        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
+        const assistantMessage = completion.choices?.[0]?.message;
+        const toolCalls = assistantMessage?.tool_calls ?? [];
+        console.log("Assistant Message:", assistantMessage);
+
+        if (toolCalls.length === 0) {
+          // 模型不再调工具 => 准备出答案，丢弃本轮草稿（末轮会重新流式生成）
+          reachedAnswer = true;
+          break;
+        }
+
+        // 持久化 + 追加 assistant 工具决策（含 tool_calls）
+        await this.persistMessage(
+          sessionId,
+          requestId,
+          "assistant",
+          assistantMessage?.content ?? null,
+          userId,
+          { tool_calls: toolCalls as unknown as AppendMessageInput["tool_calls"] },
+        );
+        messageList.push({
+          role: "assistant",
+          content: assistantMessage?.content ?? null,
+          tool_calls: toolCalls,
+        } as OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam);
+        loopRound += 1;
+
+        // 执行工具（tool-manager 内部自动发 onToolUseStart/Done）
+        for (const tool of toolCalls) {
+          if (tool.type !== "function") {
+            continue;
+          }
+          console.log(
+            `Executing tool: ${tool.function.name} (id: ${tool.id}) with arguments:`,
+            tool.function.arguments,
+          );
+
+          const toolResult = await this.toolManager.executeToolHandler(
+            requestId,
+            userId,
+            modelProvider,
+            tool.id,
+            tool.function.name,
+            tool.function.arguments,
+          );
+          const toolContent = JSON.stringify(toolResult.output);
+          messageList.push({
+            role: "tool",
+            tool_call_id: tool.id,
+            content: toolContent,
+          });
+          await this.persistMessage(sessionId, requestId, "tool", toolContent, userId, {
+            tool_call_id: tool.id,
+          });
+        }
+      }
+
+      // === 末轮：真实流式拿最终答案 ===
+      if (!reachedAnswer) {
+        // 达到最大轮次，注入 FINAL_MESSAGE
+        stopReason = "max_tool_rounds";
+        messageList.push({ role: "user", content: FINAL_MESSAGE });
+        await this.persistMessage(sessionId, requestId, "user", FINAL_MESSAGE, userId);
+      } else {
+        stopReason = "stop";
+      }
+
+      const finalStream = await agentClient.chat.completions.create({
+        ...baseConfig,
+        stream: true,
+        messages: messageList,
+      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming);
+      const finalAnswer = await this.consumeStream(finalStream, streamHandler);
+      await this.persistMessage(sessionId, requestId, "assistant", finalAnswer, userId);
+
+      streamHandler?.onContentDone?.();
+    } catch (error) {
+      stopReason = "error";
+      stopError = error as Error;
+      streamHandler?.onError?.(error as Error);
+      throw error;
+    } finally {
+      streamHandler?.onThinkingDone?.();
+      await this.hookManager.triggerHooks("Stop", {
+        ...agentContext,
+        prompt: message,
+        reason: stopReason,
+        error: stopError,
+      });
+    }
+  }
+
+  // 构建本轮上下文 messageList = [system, ...历史非system, user]，并持久化 system、user。
+  private async prepareContext(
+    sessionId: string,
+    requestId: string,
+    userId: string,
+    message: string,
+    complexityResult: ComplexityAnalyzeResult,
+  ): Promise<OpenAI.Chat.Completions.ChatCompletionMessageParam[]> {
     const historyContext = await this.conversationStore.getLLMContext(sessionId);
-    // 过滤掉历史中的旧 system 消息，本轮会重新构建；
+    // 过滤历史中的旧 system 消息，本轮会重新构建；
     // RawLLMMessage 的 content 允许 null，需转换为 OpenAI 兼容类型
     const historyNonSystem = historyContext
       .filter((m) => m.role !== "system")
@@ -155,251 +276,56 @@ export class MainAgent {
         ...(m.tool_call_id && { tool_call_id: m.tool_call_id }),
       })) as OpenAI.Chat.Completions.ChatCompletionMessageParam[];
 
-    // 构建本轮 system prompt
     const systemPromptContent = this.buildSystemPrompt(requestId, complexityResult);
-
-    // messageList = [本轮 system] + [历史非 system 消息] + [本轮 user]
     const messageList: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
-      {
-        role: "system",
-        content: systemPromptContent,
-      },
+      { role: "system", content: systemPromptContent },
       ...historyNonSystem,
+      { role: "user", content: message },
     ];
 
-    // 持久化 system 消息
+    await this.persistMessage(sessionId, requestId, "system", systemPromptContent, userId);
+    await this.persistMessage(sessionId, requestId, "user", message, userId);
+
+    return messageList;
+  }
+
+  // 消费末轮流式响应：累积 delta.content 并实时下发 onContentDelta。末轮只产出答案，不处理 tool_calls。
+  private async consumeStream(
+    stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>,
+    streamHandler: EventHandler | undefined,
+  ): Promise<string> {
+    let content = "";
+    for await (const chunk of stream) {
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (delta) {
+        content += delta;
+        streamHandler?.onContentDelta?.(delta);
+      }
+    }
+    return content;
+  }
+
+  // 统一持久化消息，消除各处 appendMessage 样板。
+  private async persistMessage(
+    sessionId: string,
+    requestId: string,
+    role: AppendMessageInput["role"],
+    content: string | null,
+    userId: string,
+    extras?: { tool_calls?: AppendMessageInput["tool_calls"]; tool_call_id?: string },
+  ): Promise<void> {
     await this.conversationStore.appendMessage(
       {
         sessionId,
         requestId,
-        role: "system",
-        content: systemPromptContent,
+        role,
+        content,
         ownerUserId: userId,
+        ...extras,
       } as AppendMessageInput,
       sessionId,
       requestId,
     );
-
-    const baseConfig: ThinkingCapableParams = {
-      ...this.buildCompletionOptions(agentConfig),
-      ...thinkingParam,
-      temperature: routeConfig.temperature,
-    };
-    // 非 agent_loop 路由下压低工具轮次，避免简单问题进入冗长的工具循环。
-    const maxToolRounds = routeConfig.maxLoopLimit;
-    await this.hookManager.triggerHooks("UserPromptSubmit", { ...agentContext, prompt: message });
-    messageList.push({
-      role: "user",
-      content: message,
-    });
-
-    // 持久化 user 消息
-    await this.conversationStore.appendMessage(
-      {
-        sessionId,
-        requestId,
-        role: "user",
-        content: message,
-        ownerUserId: userId,
-      } as AppendMessageInput,
-      sessionId,
-      requestId,
-    );
-    // 首轮loop
-    if (loopRound < maxToolRounds) {
-      let firstRoundContent = "";
-      let firstRoundFinishReason: OpenAI.Chat.Completions.ChatCompletionChunk.Choice["finish_reason"] = null;
-
-      streamHandler?.onThinkingStart?.();
-      try {
-        const firstRoundStream = await agentClient.chat.completions.create({
-          ...baseConfig,
-          stream: true,
-          messages: messageList,
-        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming);
-
-        for await (const chunk of firstRoundStream) {
-          const choice = chunk.choices?.[0];
-          if (!choice) {
-            continue;
-          }
-          firstRoundFinishReason = choice.finish_reason ?? firstRoundFinishReason;
-          const delta = choice.delta;
-          const content = delta?.content || (delta as any)?.reasoning_content;
-          if (content) {
-            process.stdout.write(content);
-            firstRoundContent += content;
-            streamHandler?.onContentDelta?.(content);
-          }
-        }
-        process.stdout.write("\n");
-
-        const assistantMessage: OpenAI.Chat.Completions.ChatCompletionAssistantMessageParam = {
-          role: "assistant",
-          content: firstRoundContent || null,
-        };
-        messageList.push(assistantMessage);
-        loopRound += 1;
-
-        // 持久化 assistant 消息
-        await this.conversationStore.appendMessage(
-          {
-            sessionId,
-            requestId,
-            role: "assistant",
-            content: firstRoundContent || null,
-            ownerUserId: userId,
-          } as AppendMessageInput,
-          sessionId,
-          requestId,
-        );
-
-        if (firstRoundFinishReason === "stop") {
-          reachedNoToolRound = true;
-          stopReason = "stop";
-          return;
-        }
-      } catch (error) {
-        streamHandler?.onError?.(error as Error);
-        throw error;
-      } finally {
-        streamHandler?.onThinkingDone?.();
-        await this.hookManager.triggerHooks("Stop", {
-          ...agentContext,
-          prompt: message,
-          reason: stopReason,
-          error: stopError,
-        });
-      }
-    }
-
-    while (!reachedNoToolRound && loopRound < maxToolRounds) {
-      // 调用 openai api
-      try {
-        const completion = await agentClient.chat.completions.create({
-          ...baseConfig,
-          stream: false,
-          messages: messageList,
-        } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
-        const assistantResponse = completion?.choices[0];
-        const { message, finish_reason } = assistantResponse;
-        const toolCalls = message?.tool_calls || [];
-        messageList.push(message);
-        loopRound += 1;
-
-        // 持久化 assistant 消息（含 tool_calls）
-        await this.conversationStore.appendMessage(
-          {
-            sessionId,
-            requestId,
-            role: "assistant",
-            content: message?.content ?? null,
-            tool_calls: message?.tool_calls as unknown as AppendMessageInput["tool_calls"],
-            ownerUserId: userId,
-          } as AppendMessageInput,
-          sessionId,
-          requestId,
-        );
-
-        if (finish_reason === "stop") {
-          reachedNoToolRound = true;
-          stopReason = "stop";
-          break;
-        }
-        for (const tool of toolCalls) {
-          if (tool.type !== "function") {
-            continue;
-          }
-          const toolResult = await this.toolManager.executeToolHandler(
-            requestId,
-            userId,
-            modelProvider,
-            tool.id,
-            tool.function.name,
-            tool.function.arguments,
-          );
-          messageList.push({
-            role: "tool",
-            tool_call_id: tool.id,
-            content: JSON.stringify(toolResult.output),
-          });
-
-          // 持久化 tool 消息
-          await this.conversationStore.appendMessage(
-            {
-              sessionId,
-              requestId,
-              role: "tool",
-              content: JSON.stringify(toolResult.output),
-              tool_call_id: tool.id,
-              ownerUserId: userId,
-            } as AppendMessageInput,
-            sessionId,
-            requestId,
-          );
-        }
-      } catch (error) {
-        streamHandler?.onError?.(error as Error);
-        throw error;
-      }
-    }
-
-    if (!reachedNoToolRound) {
-      // 达到最大工具调用轮次
-      stopReason = "max_tool_rounds";
-      messageList.push({
-        role: "user",
-        content: FINAL_MESSAGE,
-      });
-
-      // 持久化 FINAL_MESSAGE
-      await this.conversationStore.appendMessage(
-        {
-          sessionId,
-          requestId,
-          role: "user",
-          content: FINAL_MESSAGE,
-          ownerUserId: userId,
-        } as AppendMessageInput,
-        sessionId,
-        requestId,
-      );
-    }
-
-    let stream: Awaited<ReturnType<typeof agentClient.chat.completions.create>>;
-    try {
-      stream = await agentClient.chat.completions.create({
-        ...this.buildCompletionOptions(agentConfig),
-        temperature: routeConfig.temperature,
-        stream: true,
-        messages: messageList,
-        ...thinkingParam,
-      } as OpenAI.Chat.Completions.ChatCompletionCreateParamsStreaming);
-      let finalContent = "";
-      for await (const chunk of stream) {
-        const delta = chunk.choices?.[0]?.delta?.content;
-        if (delta) {
-          process.stdout.write(delta);
-          finalContent += delta;
-          streamHandler?.onContentDelta?.(delta);
-        }
-      }
-      process.stdout.write("\n");
-      streamHandler?.onContentDone?.();
-      console.log("messageList", messageList);
-    } catch (error) {
-      stopReason = "error";
-      stopError = error as Error;
-      streamHandler?.onError?.(error as Error);
-      throw error;
-    } finally {
-      await this.hookManager.triggerHooks("Stop", {
-        ...agentContext,
-        prompt: message,
-        reason: stopReason,
-        error: stopError,
-      });
-    }
   }
 
   public createHttpStreamHandler(write: (chunk: string) => void): EventHandler {

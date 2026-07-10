@@ -103,8 +103,8 @@ export type EventHandler = {
   onThinkingStart?: () => Promise<void>;
   onThinkingDelta?: (delta: string) => Promise<void>;
   onThinkingDone?: () => Promise<void>;
-  onToolUseStart?: (toolName: string, toolUseId: string, input?: string) => Promise<void>;
-  onToolUseDone?: (toolName: string, toolUseId: string, output: string) => Promise<void>;
+  onToolUseStart?: (toolName: string, toolUseId: string, data: unknown) => Promise<void>;
+  onToolUseDone?: (toolName: string, toolUseId: string, success: boolean, data: unknown) => Promise<void>;
   onPermissionRequest?: (requestId: string, message: string) => Promise<void>;
   onError?: (error: Error) => Promise<void>;
 };

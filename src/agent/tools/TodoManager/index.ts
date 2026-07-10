@@ -29,10 +29,9 @@ export class TodoManager {
     this.roundsSinceUpdate = 0;
   }
 
-  public update(items: TodoItemInput[]): string {
+  public update(items: TodoItemInput[]): void {
     this.items = this.normalizeItems(items);
     this.roundsSinceUpdate = 0;
-    return this.render();
   }
 
   public noteRoundWithoutUpdate(): void {
@@ -47,29 +46,6 @@ export class TodoManager {
       return null;
     }
     return REMINDER_MESSAGE;
-  }
-
-  public render(): string {
-    if (this.items.length === 0) {
-      return "No session plan yet.";
-    }
-
-    const lines = this.items.map((item) => {
-      const marker: Record<TodoStatus, string> = {
-        pending: "[ ]",
-        in_progress: "[>]",
-        completed: "[x]",
-      };
-      let line = `${marker[item.status]} ${item.content}`;
-      if (item.status === "in_progress" && item.activeForm) {
-        line += ` (${item.activeForm})`;
-      }
-      return line;
-    });
-
-    const completed = this.items.filter((item) => item.status === "completed").length;
-    lines.push(`\n(${completed}/${this.items.length} completed)`);
-    return lines.join("\n");
   }
 
   public getItems(): TodoItem[] {
@@ -137,8 +113,9 @@ export const registerTodoTools = (): RegisteredTool[] => {
         )
         .describe("The updated session plan items."),
     },
-    execute: async (input): Promise<string> => {
-      return manager.update(input.items);
+    execute: async (input): Promise<{ items: TodoItem[] }> => {
+      manager.update(input.items);
+      return { items: manager.getItems() };
     },
   };
 

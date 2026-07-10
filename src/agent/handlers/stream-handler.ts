@@ -34,11 +34,11 @@ export class StreamHandler {
       onThinkingDone: async () => {
         write("data: " + JSON.stringify({ type: "thinking_done" }) + "\n\n");
       },
-      onToolUseStart: async (toolName: string, toolUseId: string, input?: string) => {
-        write("data: " + JSON.stringify({ type: "tool_use_start", toolName, toolUseId, input }) + "\n\n");
+      onToolUseStart: async (toolName: string, toolUseId: string, data: unknown) => {
+        write("data: " + JSON.stringify({ type: "tool_use_start", toolName, toolUseId, data }) + "\n\n");
       },
-      onToolUseDone: async (toolName: string, toolUseId: string, output: string) => {
-        write("data: " + JSON.stringify({ type: "tool_use_done", toolName, toolUseId, output }) + "\n\n");
+      onToolUseDone: async (toolName: string, toolUseId: string, success: boolean, data: unknown) => {
+        write("data: " + JSON.stringify({ type: "tool_use_done", toolName, toolUseId, success, data }) + "\n\n");
       },
       onPermissionRequest: async (requestId: string, message: string) => {
         write("data: " + JSON.stringify({ type: "permission_request", requestId, message }) + "\n\n");

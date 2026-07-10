@@ -129,7 +129,7 @@ export class ToolManager {
         return deniedResult;
       }
 
-      await eventHandler?.onToolUseStart?.(toolName, toolCallId, rawArgs);
+      await eventHandler?.onToolUseStart?.(toolName, toolCallId, parsedArgs);
       SystemLogger.agent().toolStart({ toolName, toolCallId, input: rawArgs }).printLog();
       const toolResult = await tool.execute(parsedArgs);
       const executionTime = Date.now() - startTime;
@@ -145,7 +145,7 @@ export class ToolManager {
           ...successResult,
         })
         .printLog();
-      await eventHandler?.onToolUseDone?.(toolName, toolCallId, JSON.stringify(successResult.output));
+      await eventHandler?.onToolUseDone?.(toolName, toolCallId, true, successResult.output);
       const postToolUseContext: PostToolUseHookContext = {
         requestId,
         userId,
@@ -174,7 +174,7 @@ export class ToolManager {
         })
         .printLog();
       const eventHandler = this.streamHandler.getEventHandler();
-      await eventHandler?.onToolUseDone?.(toolName, toolCallId, output);
+      await eventHandler?.onToolUseDone?.(toolName, toolCallId, false, { error: output });
       return Promise.resolve(errorResult);
     }
   }

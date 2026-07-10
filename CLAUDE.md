@@ -73,7 +73,7 @@
 ## 禁止事项
 
 - ❌ 在 controller 中直接操作数据库
-- ❌ 绕过 `LlmService.getClientBundle()` 直接 `new OpenAI()`
+- ❌ 绕过 `LlmService.getClientBundle()` 直接 `new OpenAI()`（若用户明确指定指定子agent用自己的OpenAi实例的情况可以允许直接`new OpenAI()`）
 - ❌ 在 controller 中访问 Agent 内部状态（`MainAgent` 私有字段）
 - ❌ 新增工具但不通过 `ToolManager.registerTools()` 注册
 - ❌ 新增权限规则但不更新 `src/agent/permission/index.ts` 中的 `toolPermissionPolicies`
