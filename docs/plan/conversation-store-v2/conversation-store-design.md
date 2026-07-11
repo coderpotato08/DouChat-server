@@ -150,7 +150,6 @@ class MongoConversationRepo {
 class ContextCompressor {
   private strategyFactory: CompressStrategyFactory;
   private snapshotManager: CompressSnapshotManager;
-  private triggerJudge: CompressTriggerJudge;
   private config: StoreGlobalConfig["compress"];
 
   // 整会话批量压缩主入口
@@ -162,9 +161,9 @@ class ContextCompressor {
 }
 ```
 
-### 4.2 CompressTriggerJudge 压缩触发判定器
+### 4.2 触发判定（内聚于 ContextCompressor）
 
-三类触发逻辑，内置保护规则：
+触发判定不单独成模块，作为 `ContextCompressor` 私有方法 `shouldRunPipeline`（每轮自动）/ `shouldAutoCompact`（条件触发）；熔断由独立 `CircuitBreaker` 承担。三类触发逻辑，内置保护规则：
 自动 Token 阈值触发：会话累计 Token ≥ 配置阈值自动启动压缩
 闲置超时触发：会话无新消息达到闲置时长，后台静默压缩历史内容
 手动强制触发：业务层主动调用压缩接口
@@ -329,7 +328,7 @@ class ConversationStore {
 上层业务调用 appendMessage，传入原始消息、sessionId、requestId
 MessageValidator 校验消息合法性，IdGenerator 生成 messageId、自增 sortIndex
 组装完整数据库实体，MongoRepo 写入 chat_messages
-CompressTriggerJudge 计算会话总 Token，判断是否满足自动压缩条件
+ContextCompressor 内部 shouldRunPipeline 计算会话总 Token，判断是否满足自动压缩条件
 满足阈值：备份原文 → 策略压缩 → 更新压缩字段 → 可选生成快照归档
 调用格式化纯函数生成 LLM 纯净消息、前端结构化数据，返回调用方
 
