@@ -127,6 +127,6 @@ src/agent/memory/compressor/
 - [ ] `trigger-judge.ts` 拆分为 `shouldRunPipeline` / `shouldAutoCompact`
 - [ ] 新增 `circuit-breaker.ts`（按 session 计失败，≥3 熔断，成功清零）
 - [ ] 策略枚举/类替换为 `snip_compact/micro_compact/tool_result_budget/auto_compact`
-- [ ] `StoreGlobalConfig.compress` 扩展阈值（L1 轮数/头尾、L2 保留数、L3 总量、transcript 目录、熔断阈值）
+- [x] `StoreGlobalConfig.compress` 扩展阈值（pipeline.l1: roundThreshold/keepHead/keepTail、l2: keepRecentToolResults、l3: toolResultBudgetTokens、circuitBreakerFailureThreshold、diskRootDir）
 - [ ] 消息模型确认 L3 落盘字段方案（`compressMeta` 路径 + 占位符 content）
 - [ ] `ConversationStore.appendMessage` 接入新管线 + 熔断

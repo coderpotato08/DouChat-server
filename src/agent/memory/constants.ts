@@ -47,6 +47,30 @@ export interface StoreGlobalConfig {
     allowCompressToolResult: boolean;
     // 会话闲置静默压缩延迟时长
     idleCompressDelayMs: number;
+
+    // ===== 每轮自动管线（执行顺序 L3->L1->L2）=====
+    pipeline: {
+      l1: {
+        // 触发裁剪的消息条数阈值
+        roundThreshold: number;
+        // 保留头部条数（初始目标）
+        keepHead: number;
+        // 保留尾部条数（当前任务）
+        keepTail: number;
+      };
+      l2: {
+        // 保留最近工具结果条数，更早的替换为占位符
+        keepRecentToolResults: number;
+      };
+      l3: {
+        // 工具结果总量阈值（token），超出则按体积降序落盘
+        toolResultBudgetTokens: number;
+      };
+    };
+    // 熔断器（仅 autoCompact）：连续失败次数阈值
+    circuitBreakerFailureThreshold: number;
+    // 磁盘落盘根目录（L3 工具结果文件 + .transcript/ JSONL）
+    diskRootDir: string;
   };
 }
 
@@ -66,5 +90,12 @@ export const DEFAULT_STORE_CONFIG: StoreGlobalConfig = {
     allowCompressToolResult: true,
     // 5 分钟闲置
     idleCompressDelayMs: 300000,
+    pipeline: {
+      l1: { roundThreshold: 50, keepHead: 3, keepTail: 10 },
+      l2: { keepRecentToolResults: 10 },
+      l3: { toolResultBudgetTokens: 8000 },
+    },
+    circuitBreakerFailureThreshold: 3,
+    diskRootDir: ".douchat-compress",
   },
 };
