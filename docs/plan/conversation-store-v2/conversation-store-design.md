@@ -355,3 +355,131 @@ SnapshotManager 读取 originalContent 覆盖压缩后 content
 计费统计扩展：压缩节省 Token 自动统计上报，对接计费模块
 权限管控扩展：会话读写、压缩、回滚精细化权限隔离
 格式化函数扩展：新增输出格式仅需新增独立纯函数，无需改动核心业务类
+
+## 九、/ai/session/get 接口响应数据结构（前端历史会话渲染）
+
+> 状态：📋 待实现（代办）
+
+### 9.1 设计目标
+
+支撑前端两个场景的「todo 代办状态 + 工具调用链」渲染：
+
+1. **首次进入获取历史会话**：一次性还原会话全貌——最新 todo 计划状态 + 每轮的工具调用链 + 最终答复。
+2. **每轮 AI 答复（实时）**：SSE 的 `tool_use_start` / `tool_use_done` 事件 `data` / `success` 与本结构中 `toolCalls[].args` / `result` / `success`、`todo` 字段同构，前端历史与实时复用同一套渲染组件。
+
+### 9.2 响应结构
+
+按轮（round）组织，每轮带 `toolCalls`（工具调用链）与 `todo`（该轮结束时的计划快照）；顶层 `currentTodo` 为最新计划状态，供首次进入直接还原 todo 面板。
+
+```json
+{
+  "session": {
+    "sessionId": "01J...",
+    "title": "生成短文并写入文件",
+    "status": "active",
+    "modelProvider": "DOUBAO",
+    "messageCount": 6,
+    "lastMessagePreview": "已生成短文并写入 data/temp.txt",
+    "createdAt": "2026-07-10T10:00:00Z",
+    "updatedAt": "2026-07-10T10:05:00Z"
+  },
+  "currentTodo": {
+    "items": [
+      { "content": "生成200字短文", "status": "completed", "activeForm": "writing" },
+      { "content": "将短文写入 data/temp.txt", "status": "completed", "activeForm": "writing file" }
+    ]
+  },
+  "rounds": [
+    {
+      "requestId": "req_001",
+      "prompt": "帮我生成一篇200字短文并写入 data/temp.txt",
+      "answer": "已为你生成短文并写入 data/temp.txt。",
+      "toolCalls": [
+        {
+          "toolCallId": "call_a",
+          "toolName": "todo",
+          "args": {
+            "items": [
+              { "content": "生成200字短文", "status": "in_progress", "activeForm": "writing" },
+              { "content": "将短文写入 data/temp.txt", "status": "pending", "activeForm": "" }
+            ]
+          },
+          "result": {
+            "items": [
+              { "content": "生成200字短文", "status": "in_progress", "activeForm": "writing" },
+              { "content": "将短文写入 data/temp.txt", "status": "pending", "activeForm": "" }
+            ]
+          },
+          "success": true
+        },
+        {
+          "toolCallId": "call_b",
+          "toolName": "run_write",
+          "args": { "filePath": "data/temp.txt", "content": "我想吃大便..." },
+          "result": { "ok": true, "path": "data/temp.txt" },
+          "success": true
+        }
+      ],
+      "todo": {
+        "items": [
+          { "content": "生成200字短文", "status": "in_progress", "activeForm": "writing" },
+          { "content": "将短文写入 data/temp.txt", "status": "pending", "activeForm": "" }
+        ]
+      },
+      "createdAt": "2026-07-10T10:00:00Z",
+      "updatedAt": "2026-07-10T10:02:00Z"
+    },
+    {
+      "requestId": "req_002",
+      "prompt": "把文件读出来给我看看",
+      "answer": "文件内容是：我想吃大便...",
+      "toolCalls": [
+        {
+          "toolCallId": "call_c",
+          "toolName": "run_read",
+          "args": { "filePath": "data/temp.txt" },
+          "result": { "content": "我想吃大便..." },
+          "success": true
+        }
+      ],
+      "todo": null,
+      "createdAt": "2026-07-10T10:03:00Z",
+      "updatedAt": "2026-07-10T10:04:00Z"
+    }
+  ]
+}
+```
+
+### 9.3 字段说明
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `session` | object | 会话元信息（同现有 `/ai/session/get` 的 session 字段） |
+| `currentTodo` | `{ items: TodoItem[] } \| null` | 最新计划状态，取最后一个含 todo 工具调用的轮次的 `todo`；无则 null |
+| `rounds[]` | array | 按 `requestId` 分组的轮次数组，按时间升序 |
+| `rounds[].requestId` | string | 单轮请求 ID |
+| `rounds[].prompt` | string | 本轮用户输入 |
+| `rounds[].answer` | string | 本轮 AI 最终答复文本 |
+| `rounds[].toolCalls[]` | array | 本轮工具调用链，按时序排列 |
+| `toolCalls[].toolCallId` | string | 工具调用 ID（关联 assistant.tool_calls.id 与 tool.tool_call_id） |
+| `toolCalls[].toolName` | string | 工具名 |
+| `toolCalls[].args` | object | 工具入参对象（反序列化后的 parsedArgs，非字符串） |
+| `toolCalls[].result` | object | 工具输出对象（反序列化后的 output，非字符串） |
+| `toolCalls[].success` | boolean | 是否执行成功 |
+| `rounds[].todo` | `{ items: TodoItem[] } \| null` | 本轮结束时的计划快照；本轮无 todo 工具调用则为 null（前端可向前继承） |
+| `TodoItem` | `{ content, status, activeForm }` | status: pending / in_progress / completed |
+
+### 9.4 与现有结构的映射
+
+- `rounds` 由 `getFrontendSessionData`（见 5.2 `buildFrontendChatRound`）产出，按 `requestId` 分组。
+- `toolCalls[].args` 来源：assistant 消息的 `tool_calls[].function.arguments`（JSON 反序列化）。
+- `toolCalls[].result` 来源：对应 `tool` 角色消息的 `content`（JSON 反序列化）；失败时为 `{ error: message }`，`success: false`。
+- `todo` / `currentTodo`：从 `toolName === "todo"` 的工具调用 `result.items` 提取。
+- `system` 消息不进入 `rounds`（仅用于 LLM 上下文，不展示）。
+
+### 9.5 待办
+
+- [ ] 在 `getSession` controller 中将 `messages` 平铺结构改为 `rounds` 分组 + `currentTodo` 聚合
+- [ ] 复用 `buildFrontendChatRound` 完成 assistant.tool_calls ↔ tool 结果的绑定与反序列化
+- [ ] 前端 `SessionMessageItem` / `GetSessionResult` 类型同步为 rounds 结构
+- [ ] 与 SSE 实时事件（`tool_use_start/done`）的 data/success 形状对齐校验

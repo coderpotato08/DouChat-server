@@ -107,9 +107,7 @@ export class MainAgent {
 
     return [
       SYSTEM_PROMPT,
-      "意图识别路由结果:",
-      JSON.stringify(complexityResult),
-      routeConfig.extraPrompt,
+      `本轮策略：${routeConfig.extraPrompt}`,
       buildBashBlacklistSystemPrompt(requestId),
     ].join("\n");
   }
@@ -167,7 +165,6 @@ export class MainAgent {
         } as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming);
         const assistantMessage = completion.choices?.[0]?.message;
         const toolCalls = assistantMessage?.tool_calls ?? [];
-        console.log("Assistant Message:", assistantMessage);
 
         if (toolCalls.length === 0) {
           // 模型不再调工具 => 准备出答案，丢弃本轮草稿（末轮会重新流式生成）
@@ -196,10 +193,6 @@ export class MainAgent {
           if (tool.type !== "function") {
             continue;
           }
-          console.log(
-            `Executing tool: ${tool.function.name} (id: ${tool.id}) with arguments:`,
-            tool.function.arguments,
-          );
 
           const toolResult = await this.toolManager.executeToolHandler(
             requestId,

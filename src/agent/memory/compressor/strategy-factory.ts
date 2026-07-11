@@ -15,9 +15,10 @@ export interface CompressTokenStats {
 // ==================== 策略接口 ====================
 
 /**
- * ICompressStrategy — 压缩策略统一抽象接口
+ * ICompressStrategy - 压缩策略统一抽象接口
  *
  * 新增压缩算法无需修改核心调度代码，符合开闭原则。
+ * 注：单消息级接口保留给未来；会话级管线阶段见 pipeline/ 下的 IPipelineStage（待实现）。
  */
 export interface ICompressStrategy {
   /** 执行压缩，返回压缩后内容与 Token 统计 */
@@ -30,7 +31,7 @@ export interface ICompressStrategy {
 // ==================== 策略工厂 ====================
 
 /**
- * CompressStrategyFactory — 压缩策略工厂
+ * CompressStrategyFactory - 压缩策略工厂
  *
  * 管理所有已注册的压缩策略，按名称分发。
  */
@@ -63,70 +64,5 @@ export class CompressStrategyFactory {
    */
   listRegistered(): CompressStrategy[] {
     return Array.from(this.strategies.keys());
-  }
-}
-
-// ==================== 空桩策略实现 ====================
-
-const NOT_IMPLEMENTED = (name: string, method: string): Error =>
-  new Error(`${name}.${method} is not implemented yet.`);
-
-/**
- * TokenPruneStrategy — 轻量级冗余字符裁剪（空桩）
- */
-export class TokenPruneStrategy implements ICompressStrategy {
-  execute(_rawMsg: ChatMessageEntity): { newContent: string; tokenStats: CompressTokenStats } {
-    throw NOT_IMPLEMENTED("TokenPruneStrategy", "execute");
-  }
-  rollback(_compressedMsg: ChatMessageEntity): string | null {
-    throw NOT_IMPLEMENTED("TokenPruneStrategy", "rollback");
-  }
-}
-
-/**
- * RoundAbstractStrategy — 多轮对话合并语义摘要（空桩）
- */
-export class RoundAbstractStrategy implements ICompressStrategy {
-  execute(_rawMsg: ChatMessageEntity): { newContent: string; tokenStats: CompressTokenStats } {
-    throw NOT_IMPLEMENTED("RoundAbstractStrategy", "execute");
-  }
-  rollback(_compressedMsg: ChatMessageEntity): string | null {
-    throw NOT_IMPLEMENTED("RoundAbstractStrategy", "rollback");
-  }
-}
-
-/**
- * SystemLightStrategy — 超长系统提示词轻量化精简（空桩）
- */
-export class SystemLightStrategy implements ICompressStrategy {
-  execute(_rawMsg: ChatMessageEntity): { newContent: string; tokenStats: CompressTokenStats } {
-    throw NOT_IMPLEMENTED("SystemLightStrategy", "execute");
-  }
-  rollback(_compressedMsg: ChatMessageEntity): string | null {
-    throw NOT_IMPLEMENTED("SystemLightStrategy", "rollback");
-  }
-}
-
-/**
- * ToolMergeStrategy — 多轮工具返回结果合并压缩（空桩）
- */
-export class ToolMergeStrategy implements ICompressStrategy {
-  execute(_rawMsg: ChatMessageEntity): { newContent: string; tokenStats: CompressTokenStats } {
-    throw NOT_IMPLEMENTED("ToolMergeStrategy", "execute");
-  }
-  rollback(_compressedMsg: ChatMessageEntity): string | null {
-    throw NOT_IMPLEMENTED("ToolMergeStrategy", "rollback");
-  }
-}
-
-/**
- * LlmSemanticSummaryStrategy — 轻量模型深度语义压缩（空桩）
- */
-export class LlmSemanticSummaryStrategy implements ICompressStrategy {
-  execute(_rawMsg: ChatMessageEntity): { newContent: string; tokenStats: CompressTokenStats } {
-    throw NOT_IMPLEMENTED("LlmSemanticSummaryStrategy", "execute");
-  }
-  rollback(_compressedMsg: ChatMessageEntity): string | null {
-    throw NOT_IMPLEMENTED("LlmSemanticSummaryStrategy", "rollback");
   }
 }
