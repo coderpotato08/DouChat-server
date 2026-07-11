@@ -76,7 +76,7 @@
 |----|------|
 | 策略接口 | 新增会话级 `IPipelineStage.execute(sessionId, messages) -> { messages, stats }`；单消息接口保留给未来 |
 | 管线编排器 | 新增 `CompressionPipeline`（或 `ContextCompressor` 内）串联 L3->L1->L2 |
-| 触发判定 | `CompressTriggerJudge` 拆成 `shouldRunPipeline`（每轮）+ `shouldAutoCompact`（条件）+ 熔断状态机 |
+| 触发判定 | 不单独成模块，`shouldRunPipeline`（每轮）+ `shouldAutoCompact`（条件）内聚为 `ContextCompressor` 私有方法；熔断由 `CircuitBreaker` 承担 |
 | 磁盘落盘模块 | 新增 `DiskPersistenceStore`：工具结果文件读写 + transcript JSONL |
 | 熔断器 | 新增 `CircuitBreaker`：按 session 计失败，≥3 跳过 |
 | 策略枚举/类 | `token_prune/round_abstract/system_light/tool_merge/llm_summary` -> `snip_compact/micro_compact/tool_result_budget/auto_compact` |
@@ -85,7 +85,7 @@
 
 ## 五、目标结构（目录树，kebab-case）
 
-保留模块文件名已与现有对齐（`context-compressor` / `snapshot-manager` / `strategy-factory` / `trigger-judge`），无需重命名；新增模块按 `-` 模式拼接。
+保留模块文件名已与现有对齐（`context-compressor` / `snapshot-manager` / `strategy-factory`），无需重命名；新增模块按 `-` 模式拼接。
 
 ```
 src/agent/memory/compressor/
@@ -99,11 +99,10 @@ src/agent/memory/compressor/
 ├─ circuit-breaker.ts              # CircuitBreaker 熔断（新增）
 ├─ disk-persistence-store.ts       # DiskPersistenceStore 磁盘落盘（新增）
 ├─ snapshot-manager.ts             # CompressSnapshotManager（保留）
-├─ strategy-factory.ts             # CompressStrategyFactory + ICompressStrategy（保留）
-└─ trigger-judge.ts                # CompressTriggerJudge（保留，待拆分 shouldRunPipeline / shouldAutoCompact）
+└─ strategy-factory.ts             # CompressStrategyFactory + ICompressStrategy（保留）
 ```
 
-> 已移除：`strategy-factory.ts` 内 5 个空桩策略类（TokenPruneStrategy / RoundAbstractStrategy / SystemLightStrategy / ToolMergeStrategy / LlmSemanticSummaryStrategy）及 `NOT_IMPLEMENTED` 辅助；`ICompressStrategy` 单消息接口按文档「保留给未来」予以保留。
+> 已移除：`strategy-factory.ts` 内 5 个空桩策略类（TokenPruneStrategy / RoundAbstractStrategy / SystemLightStrategy / ToolMergeStrategy / LlmSemanticSummaryStrategy）及 `NOT_IMPLEMENTED` 辅助；`ICompressStrategy` 单消息接口按文档「保留给未来」予以保留。`trigger-judge.ts`（`CompressTriggerJudge`）已移除，触发判定并入 `ContextCompressor`。
 
 ## 六、落地阶段（最小可用闭环）
 
@@ -124,7 +123,7 @@ src/agent/memory/compressor/
 - [ ] 实现 L3 `tool-result-budget-stage.ts`（大结果占位 + 磁盘落盘 + `compressMeta` 存路径）
 - [ ] 新增 `disk-persistence-store.ts`（工具结果文件 + `.transcript/` JSONL 读写）
 - [ ] 新增 `auto-compact-strategy.ts`（LLM 摘要 + 完整对话落 transcript + 快照归档）
-- [ ] `trigger-judge.ts` 拆分为 `shouldRunPipeline` / `shouldAutoCompact`
+- [x] 触发判定并入 `ContextCompressor`（`shouldRunPipeline` / `shouldAutoCompact` 私有方法），移除 `trigger-judge.ts`
 - [ ] 新增 `circuit-breaker.ts`（按 session 计失败，≥3 熔断，成功清零）
 - [ ] 策略枚举/类替换为 `snip_compact/micro_compact/tool_result_budget/auto_compact`
 - [x] `StoreGlobalConfig.compress` 扩展阈值（pipeline.l1: roundThreshold/keepHead/keepTail、l2: keepRecentToolResults、l3: toolResultBudgetTokens、circuitBreakerFailureThreshold、diskRootDir）

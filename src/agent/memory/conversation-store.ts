@@ -145,18 +145,12 @@ export class ConversationStore {
       mergedRoundIds: [],
     } as Omit<ChatMessageEntity, "messageId" | "sortIndex">);
 
-    // 3. 触发压缩检测（桩实现，当前为 no-op）
+    // 3. 触发压缩（compressor 内部自判阈值：未达阈值即 no-op，达阈值跑管线）
     if (this.config.compress.enableAutoCompress) {
-      const { should } = await this.compressor
-        .getTriggerJudge()
-        .shouldCompress(sessionId);
-      if (should) {
-        // 压缩模块未实现，此路径当前不可达
-        try {
-          await this.compressor.compressSession(sessionId);
-        } catch {
-          // 压缩异常时静默降级，不影响消息写入
-        }
+      try {
+        await this.compressor.compressSession(sessionId);
+      } catch {
+        // 压缩异常时静默降级，不影响消息写入
       }
     }
 
