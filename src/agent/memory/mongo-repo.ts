@@ -4,6 +4,7 @@ import type { AiSessionMessageDocument } from "../../models/aiSessionMessageMode
 import type { AiSessionCompressSnapshotDocument } from "../../models/aiSessionCompressSnapshotModel";
 import { IdGenerator } from "./id-generator";
 import { SessionNotFoundError } from "./errors";
+import { estimateTokenCount } from "../utils/common-utils";
 
 // ==================== 类型别名 ====================
 
@@ -111,23 +112,21 @@ export class MongoConversationRepo {
 
   /**
    * 统计会话总 Token 消耗
-   * 遍历会话全量消息，累加 tokenUsage.totalToken
+   *
+   * 优先使用模型返回的 tokenUsage.totalToken；缺失时按当前入上下文内容估算：
+   * - 普通消息：估算 content
+   * - assistant 工具调用消息：content 可能为空，还需估算 tool_calls（函数名 + arguments）
+   * - tool 结果消息：估算 content（若已压缩则只按占位符计算）
    */
   async calcSessionTotalToken(sessionId: string): Promise<number> {
-    const result = await AiSessionMessageModel.aggregate([
-      { $match: { sessionId } },
-      {
-        $group: {
-          _id: null,
-          totalToken: { $sum: "$tokenUsage.totalToken" },
-        },
-      },
-    ]);
+    const docs = await AiSessionMessageModel.find({ sessionId })
+      .select("content tokenUsage tool_calls tool_call_id")
+      .lean();
 
-    if (result.length === 0) {
-      return 0;
-    }
-    return result[0].totalToken ?? 0;
+    return (docs as ChatMessageEntity[]).reduce(
+      (sum, msg) => sum + this.calcMessageToken(msg),
+      0,
+    );
   }
 
   // ==================== 会话生命周期 ====================
@@ -176,5 +175,28 @@ export class MongoConversationRepo {
       .lean();
 
     return doc?.sortIndex ?? -1;
+  }
+
+  /**
+   * 单消息 token 计算：优先取 totalToken，缺失时估算 content + tool_calls。
+   */
+  private calcMessageToken(msg: ChatMessageEntity): number {
+    const totalToken = msg.tokenUsage?.totalToken;
+    if (typeof totalToken === "number") {
+      return totalToken;
+    }
+
+    let estimated = estimateTokenCount(msg.content);
+    if (msg.tool_calls && msg.tool_calls.length > 0) {
+      estimated += msg.tool_calls.reduce(
+        (sum, toolCall) =>
+          sum +
+          estimateTokenCount(toolCall.function.name) +
+          estimateTokenCount(toolCall.function.arguments),
+        0,
+      );
+    }
+
+    return estimated;
   }
 }
