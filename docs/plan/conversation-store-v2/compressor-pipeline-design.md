@@ -96,8 +96,9 @@ src/agent/memory/compressor/
 │   ├─ snip-compact-stage.ts       #   L1 SnipCompactStage
 │   └─ micro-compact-stage.ts      #   L2 MicroCompactStage
 ├─ auto-compact-strategy.ts        # AutoCompactStrategy 条件触发（新增）
-├─ circuit-breaker.ts              # CircuitBreaker 熔断（新增）
-├─ disk-persistence-store.ts       # DiskPersistenceStore 磁盘落盘（新增）
+├─ utils/                          # 底层工具类（新增目录）
+│   ├─ circuit-breaker.ts          #   CircuitBreaker 熔断（仅 autoCompact）
+│   └─ disk-persistence-store.ts   #   DiskPersistenceStore 磁盘落盘
 ├─ snapshot-manager.ts             # CompressSnapshotManager（保留）
 └─ strategy-factory.ts             # CompressStrategyFactory + ICompressStrategy（保留）
 ```
@@ -116,16 +117,16 @@ src/agent/memory/compressor/
 
 ## 七、待办
 
-- [ ] 新增 `IPipelineStage` 会话级接口，替换单消息 `ICompressStrategy` 为主抽象
-- [ ] 新增 `pipeline/` 目录 + `compression-pipeline.ts` 编排器（L3->L1->L2 顺序执行）
-- [ ] 实现 L1 `snip-compact-stage.ts`（轮数阈值 + 头3尾n-3 + requestId 边界不拆对 + 裁剪段落入 transcript）
-- [ ] 实现 L2 `micro-compact-stage.ts`（旧 tool 结果占位，原文留 `originalContent`）
-- [ ] 实现 L3 `tool-result-budget-stage.ts`（大结果占位 + 磁盘落盘 + `compressMeta` 存路径）
-- [ ] 新增 `disk-persistence-store.ts`（工具结果文件 + `.transcript/` JSONL 读写）
+- [x] 新增 `pipeline/types.ts`（`IPipelineStage` 会话级接口 + `StageStats`），替换单消息 `ICompressStrategy` 为主抽象
+- [x] 新增 `pipeline/compression-pipeline.ts` 编排器（L3->L1->L2 顺序串联，各阶段自判阈值）
+- [x] 实现 L1 `snip-compact-stage.ts`（轮数阈值 + 头/尾保留 + assistant-tool 边界不拆对 + 裁剪段落入 transcript）
+- [x] 实现 L2 `micro-compact-stage.ts`（旧 tool 结果占位，原文留 `originalContent`，跳过已压缩消息）
+- [x] 实现 L3 `tool-result-budget-stage.ts`（大结果按体积降序落盘，`compressMeta.diskPath` 存路径，`<persisted-result>` 占位）
+- [x] 新增 `utils/disk-persistence-store.ts`（工具结果文件写入/读取 + `.transcript/` JSONL 追加/追回，路径安全防穿越）
 - [ ] 新增 `auto-compact-strategy.ts`（LLM 摘要 + 完整对话落 transcript + 快照归档）
 - [x] 触发判定并入 `ContextCompressor`（`shouldRunPipeline` / `shouldAutoCompact` 私有方法），移除 `trigger-judge.ts`
-- [ ] 新增 `circuit-breaker.ts`（按 session 计失败，≥3 熔断，成功清零）
+- [x] 新增 `utils/circuit-breaker.ts`（按 session 计连续失败，≥3 熔断，成功清零；仅 autoCompact 引入）
 - [ ] 策略枚举/类替换为 `snip_compact/micro_compact/tool_result_budget/auto_compact`
 - [x] `StoreGlobalConfig.compress` 扩展阈值（pipeline.l1: roundThreshold/keepHead/keepTail、l2: keepRecentToolResults、l3: toolResultBudgetTokens、circuitBreakerFailureThreshold、diskRootDir）
-- [ ] 消息模型确认 L3 落盘字段方案（`compressMeta` 路径 + 占位符 content）
-- [ ] `ConversationStore.appendMessage` 接入新管线 + 熔断
+- [x] 消息模型确认 L3 落盘字段方案（`AiMessageCompressMeta.diskPath` + 占位符 `content`）
+- [x] `ConversationStore.appendMessage` 接入新管线（L3->L1->L2 已串联，compressSession 自判触发并持久化 L2/L3 改动）

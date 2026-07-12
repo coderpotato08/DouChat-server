@@ -96,6 +96,6 @@ export const DEFAULT_STORE_CONFIG: StoreGlobalConfig = {
       l3: { toolResultBudgetTokens: 8000 },
     },
     circuitBreakerFailureThreshold: 3,
-    diskRootDir: ".douchat-compress",
+    diskRootDir: "data/.douchat-compress",
   },
 };

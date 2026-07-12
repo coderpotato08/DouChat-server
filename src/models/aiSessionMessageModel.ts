@@ -51,6 +51,8 @@ export interface AiMessageCompressMeta {
   compressionRatio?: number;
   // 触发压缩时使用的阈值
   triggerThreshold?: number;
+  // L3 落盘：工具结果在磁盘上的相对路径（供回滚读取）
+  diskPath?: string;
 }
 
 export interface AiSessionMessageDocument {

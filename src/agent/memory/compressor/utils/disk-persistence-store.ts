@@ -8,11 +8,11 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
  * 1. L3 ToolResultBudget：单个工具结果写为 JSON 文件，消息 content 替换为占位符，
  *    compressMeta 记录返回的相对路径；回滚时按路径读取还原。
  * 2. autoCompact / L1 snipCompact：被摘要替换或被裁剪的完整消息追加到
- *    .transcript/<sessionId>.jsonl，供历史追回。
+ *    <sessionId>/.transcript/messages.jsonl，供历史追回。
  *
  * 目录布局（rootDir 下）：
- *   tool-results/<sessionId>/<toolCallId>.json
- *   .transcript/<sessionId>.jsonl
+ *   <sessionId>/tool-results/<toolCallId>.json
+ *   <sessionId>/.transcript/messages.jsonl
  *
  * 安全：sessionId / toolCallId 仅允许 [A-Za-z0-9_-]；读取路径必须落在 rootDir 内，
  * 防止目录穿越。
@@ -28,7 +28,7 @@ export class DiskPersistenceStore {
 
   constructor(rootDir?: string) {
     this.rootDir = resolve(
-      rootDir ?? join(process.cwd(), ".douchat-compress"),
+      rootDir ?? join(process.cwd(), "data", ".douchat-compress"),
     );
   }
 
@@ -44,7 +44,7 @@ export class DiskPersistenceStore {
   ): Promise<string> {
     this.assertSafeSegment(sessionId, "sessionId");
     this.assertSafeSegment(toolCallId, "toolCallId");
-    const relPath = join(TOOL_RESULTS_DIR, sessionId, `${toolCallId}.json`);
+    const relPath = join(sessionId, TOOL_RESULTS_DIR, `${toolCallId}.json`);
     const absPath = join(this.rootDir, relPath);
     await mkdir(dirname(absPath), { recursive: true });
     await writeFile(absPath, JSON.stringify(data), "utf-8");
@@ -71,7 +71,7 @@ export class DiskPersistenceStore {
   ): Promise<void> {
     if (entries.length === 0) return;
     this.assertSafeSegment(sessionId, "sessionId");
-    const absPath = join(this.rootDir, TRANSCRIPT_DIR, `${sessionId}.jsonl`);
+    const absPath = join(this.rootDir, sessionId, TRANSCRIPT_DIR, "messages.jsonl");
     await mkdir(dirname(absPath), { recursive: true });
     const lines = entries.map((e) => JSON.stringify(e)).join("\n") + "\n";
     await appendFile(absPath, lines, "utf-8");
@@ -82,7 +82,7 @@ export class DiskPersistenceStore {
    */
   async readTranscript(sessionId: string): Promise<unknown[]> {
     this.assertSafeSegment(sessionId, "sessionId");
-    const absPath = join(this.rootDir, TRANSCRIPT_DIR, `${sessionId}.jsonl`);
+    const absPath = join(this.rootDir, sessionId, TRANSCRIPT_DIR, "messages.jsonl");
     let raw: string;
     try {
       raw = await readFile(absPath, "utf-8");
