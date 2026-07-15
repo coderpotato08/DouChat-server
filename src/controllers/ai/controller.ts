@@ -1,4 +1,5 @@
 import { Context } from "koa";
+import type OpenAI from "openai";
 import { v4 as uuidv4 } from "uuid";
 import { getMainAgent, initMainAgent } from "../../agent/engine/main-agent";
 import { IdGenerator } from "../../agent/memory/id-generator";
@@ -6,10 +7,11 @@ import { bashBlacklistStore, permissionStore } from "../../agent/permission";
 import { FINAL_MESSAGE } from "../../agent/types/agent";
 import { $ErrorCode, $ErrorMessage, $SuccessCode } from "../../constant/errorData";
 import { getValidatedRequestData } from "../../middleware/validate-request";
-import AiSessionModel from "../../models/aiSessionModel";
 import AiSessionMessageModel from "../../models/aiSessionMessageModel";
+import AiSessionModel from "../../models/aiSessionModel";
 import { createRes } from "../../models/responseModel";
-import { createSSESession } from "../../utils/sse-utils";
+import { stripThinkingTags } from "../../utils/common-utils";
+import { createSSESession, writeSSEData, type SSESession } from "../../utils/sse-utils";
 import {
   AgentCompletionRequestBody,
   AgentPermissionRequestBody,
@@ -17,7 +19,6 @@ import {
   GetSessionRequestBody,
   InitSessionRequestBody,
 } from "./validator";
-import { stripThinkingTags } from "../../utils/common-utils";
 
 export const initAgent = async (ctx: Context) => {
   try {
@@ -44,7 +45,11 @@ export const initAgent = async (ctx: Context) => {
 export const agentCompletion = async (ctx: Context) => {
   const sseSession = createSSESession(ctx);
   const { body } = getValidatedRequestData<AgentCompletionRequestBody>(ctx);
-  const requestId = uuidv4();
+
+  if (body.debug) {
+    void runMockAgentMessageStream(sseSession);
+    return;
+  }
 
   let agent: ReturnType<typeof getMainAgent>;
   try {
@@ -64,8 +69,15 @@ export const agentCompletion = async (ctx: Context) => {
   });
 
   void bashBlacklistStore
-    .runWithSession(requestId, () =>
-      agent.sendThinkingStreamMessage(body.sessionId, requestId, body.userId, body.prompt, body.modelProvider, eventHandler),
+    .runWithSession(body.requestId, () =>
+      agent.sendThinkingStreamMessage(
+        body.sessionId,
+        body.requestId,
+        body.userId,
+        body.prompt,
+        body.modelProvider,
+        eventHandler,
+      ),
     )
     .then(() => {
       sseSession.close();
@@ -87,6 +99,164 @@ export const agentPermission = async (ctx: Context) => {
 };
 
 /**
+ * 测试接口
+ * mock agent消息输出，将mock/mock-messages.ts内容通过SSE流式输出，用于前端调试
+ * 输出格式和真实sendThinkingStreamMessage一致
+ */
+type MockToolCall = {
+  id: string;
+  type: "function";
+  function: { name: string; arguments: string };
+};
+
+const runMockAgentMessageStream = async (sseSession: SSESession): Promise<void> => {
+
+  const loadMockMessages = (): OpenAI.Chat.Completions.ChatCompletionMessageParam[] => {
+    const mockPath = require("node:path").join(process.cwd(), "mock", "mock-messages.ts");
+    const mod = require(mockPath) as {
+      mockMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[];
+    };
+    return mod.mockMessages;
+  };
+
+  const getTextContent = (
+    content: OpenAI.Chat.Completions.ChatCompletionMessageParam["content"],
+  ): string | null => {
+    if (typeof content === "string") return content;
+    if (!Array.isArray(content)) return null;
+
+    const text = content.map((part) => (part.type === "text" ? part.text : "")).join("");
+    return text || null;
+  };
+
+  // 逐字流式输出内容，模拟真实打字效果（只输出 content_delta；content_start/content_done 由外层统一发送）
+  const streamContent = async (content: string | null, delayPerChar = 30) => {
+    if (!content || sseSession.isClosed()) return;
+    for (let i = 0; i < content.length; i++) {
+      if (sseSession.isClosed()) return;
+      writeSSEData(
+        sseSession.stream,
+        JSON.stringify({
+          type: "content_delta",
+          delta: content[i],
+        }),
+      );
+      await new Promise((resolve) => setTimeout(resolve, delayPerChar));
+    }
+  };
+
+  // 输出工具调用开始事件（对齐 onToolUseStart）
+  const streamToolUseStart = async (toolCall: MockToolCall) => {
+    if (sseSession.isClosed()) return;
+    writeSSEData(
+      sseSession.stream,
+      JSON.stringify({
+        type: "tool_use_start",
+        toolName: toolCall.function.name,
+        toolUseId: toolCall.id,
+        data: JSON.parse(toolCall.function.arguments),
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 800)); // 模拟工具执行前置延迟
+  };
+
+  // 输出工具调用结束和结果（对齐 onToolUseDone）
+  const streamToolUseDone = async (
+    toolName: string,
+    toolUseId: string,
+    resultContent: string,
+  ) => {
+    if (sseSession.isClosed()) return;
+    const data = JSON.parse(resultContent);
+    writeSSEData(
+      sseSession.stream,
+      JSON.stringify({
+        type: "tool_use_done",
+        toolName,
+        toolUseId,
+        success: true,
+        data,
+      }),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  };
+
+  try {
+    // 1. 输出开始事件，模拟真实 sendThinkingStreamMessage：content_start 只发一次
+    writeSSEData(sseSession.stream, JSON.stringify({ type: "thinking_start" }));
+    writeSSEData(sseSession.stream, JSON.stringify({ type: "content_start" }));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    let pendingToolCall: MockToolCall | null = null;
+    let finalContent: string | null = null;
+    const mockMessages = loadMockMessages();
+
+    // 2. 遍历mock消息：工具链按真实流程输出；assistant文本只保留最后一条作为末轮流式回答
+    for (const msg of mockMessages) {
+      if (sseSession.isClosed()) break;
+
+      switch (msg.role) {
+        case "system":
+        case "user":
+          // 系统提示和用户消息不输出给前端（前端已持有）
+          continue;
+
+        case "assistant":
+          if (msg.tool_calls && msg.tool_calls.length > 0) {
+            // 工具调用消息：输出工具调用开始事件
+            for (const toolCall of msg.tool_calls) {
+              if (toolCall.type === "function") {
+                pendingToolCall = toolCall as MockToolCall;
+                await streamToolUseStart(pendingToolCall);
+              }
+            }
+          } else {
+            // 真实 sendThinkingStreamMessage 的非末轮 assistant 文本不会流给前端；
+            // 这里只缓存最后一条 assistant 文本，等全部工具调用结束后统一按 content_delta 流式输出。
+            finalContent = getTextContent(msg.content) ?? finalContent;
+          }
+          break;
+
+        case "tool":
+          // 工具结果消息：和之前 pending 的 toolCall 对应，输出工具执行完成事件
+          if (pendingToolCall && msg.tool_call_id === pendingToolCall.id) {
+            const textContent = getTextContent(msg.content);
+            if (textContent) {
+              await streamToolUseDone(
+                pendingToolCall.function.name,
+                msg.tool_call_id,
+                textContent,
+              );
+            }
+            pendingToolCall = null;
+          }
+          break;
+      }
+    }
+
+    // 3. 全部工具事件结束后，再模拟末轮真实流式回答
+    if (finalContent && !sseSession.isClosed()) {
+      await streamContent(finalContent);
+    }
+
+    // 4. 输出结束事件：content_done 后不再发送任何业务内容，仅 close() 写 [DONE]
+    if (!sseSession.isClosed()) {
+      writeSSEData(sseSession.stream, JSON.stringify({ type: "content_done" }));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+
+    // 4. 发送结束标记并关闭连接
+    sseSession.close();
+  } catch (error) {
+    console.error("mock SSE 输出错误:", error);
+    if (!sseSession.isClosed()) {
+      sseSession.sendError(error instanceof Error ? error.message : "未知错误");
+      sseSession.close();
+    }
+  }
+};
+
+/**
  * 获取某个用户所属的所有会话列表
  * POST /ai/session/list
  */
@@ -103,9 +273,7 @@ export const getSessionList = async (ctx: Context) => {
     filter.status = body.status;
   }
 
-  const sessions = await AiSessionModel.find(filter)
-    .sort({ updatedAt: -1 })
-    .lean();
+  const sessions = await AiSessionModel.find(filter).sort({ updatedAt: -1 }).lean();
 
   ctx.body = createRes(
     $SuccessCode,
@@ -130,20 +298,12 @@ export const getSession = async (ctx: Context) => {
   }).lean();
 
   if (!session) {
-    ctx.body = createRes(
-      $ErrorCode.Common.SERVER_ERROR,
-      null,
-      "会话不存在或已被删除",
-    );
+    ctx.body = createRes($ErrorCode.Common.SERVER_ERROR, null, "会话不存在或已被删除");
     return;
   }
 
   if (session.userId !== body.userId) {
-    ctx.body = createRes(
-      $ErrorCode.Common.SERVER_ERROR,
-      null,
-      "无权访问该会话",
-    );
+    ctx.body = createRes($ErrorCode.Common.SERVER_ERROR, null, "无权访问该会话");
     return;
   }
 
@@ -218,9 +378,5 @@ export const initSession = async (ctx: Context) => {
     deletedAt: null,
   });
 
-  ctx.body = createRes(
-    $SuccessCode,
-    { sessionId },
-    "",
-  );
+  ctx.body = createRes($SuccessCode, { sessionId }, "");
 };

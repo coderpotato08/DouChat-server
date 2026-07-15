@@ -5,8 +5,10 @@ import { AI_SESSION_STATUSES } from "../../models/aiSessionModel";
 export const agentCompletionBodySchema = z.object({
   prompt: z.string().trim().min(1, "prompt不能为空"),
   userId: z.string().trim().min(1, "userId不能为空"),
+  requestId: z.string().trim().min(1, "requestId不能为空"),
   sessionId: z.string().trim().min(1, "sessionId不能为空"),
   modelProvider: z.enum(LLM_PROVIDER_NAMES).default("DOUBAO"),
+  debug: z.boolean().optional().default(false),
 });
 
 export const agentPermissionBodySchema = z.object({

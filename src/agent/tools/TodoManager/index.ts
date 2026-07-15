@@ -52,10 +52,6 @@ export class TodoManager {
     return this.items.map((item) => ({ ...item }));
   }
 
-  public getRoundSinceUpdate(): number {
-    return this.roundsSinceUpdate;
-  }
-
   public getRoundsSinceUpdate(): number {
     return this.roundsSinceUpdate;
   }
