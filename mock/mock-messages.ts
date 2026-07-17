@@ -171,9 +171,8 @@ export const mockMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] 
           arguments: JSON.stringify({
             items: [
               { content: "分析短文《我想下班》的优点", status: "completed", activeForm: "" },
-              { content: "分析短文《我想下班》的缺点", status: "completed", activeForm: "" },
-              { content: "给出结构化改进建议", status: "completed", activeForm: "" },
-              { content: "将改进版写入 data/temp_improved.txt", status: "in_progress", activeForm: "写入文件" },
+              { content: "分析短文《我想下班》的缺点", status: "in_progress", activeForm: "" },
+              { content: "给出结构化改进建议", status: "pending", activeForm: "" },
             ],
           }),
         },
@@ -188,7 +187,6 @@ export const mockMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] 
         { content: "分析短文《我想下班》的优点", status: "completed", activeForm: "" },
         { content: "分析短文《我想下班》的缺点", status: "completed", activeForm: "" },
         { content: "给出结构化改进建议", status: "completed", activeForm: "" },
-        { content: "将改进版写入 data/temp_improved.txt", status: "in_progress", activeForm: "写入文件" },
       ],
     }),
   },
@@ -245,6 +243,6 @@ export const mockMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] 
   {
     role: "assistant",
     content:
-      "data 目录下共 3 个文件：\n- `temp.txt`（412 字节，原始短文）\n- `temp_improved.txt`（689 字节，改进版）\n- `.gitkeep`（空文件）",
+      "## data 目录下共 3 个文件：\n- `temp.txt`（412 字节，原始短文）\n- `temp_improved.txt`（689 字节，改进版）\n- `.gitkeep`（空文件）",
   },
 ];

@@ -1,7 +1,6 @@
 import { ChatCompletionFunctionTool } from "openai/resources";
 import z from "zod";
 import { SystemLogger } from "../../console";
-import { StreamHandler } from "../handlers/stream-handler";
 import { askUserForPermission, checkCommandPermissionRules } from "../permission";
 import {
   AgentHookCallback,
@@ -10,6 +9,7 @@ import {
   PreToolUseHookContext,
 } from "../types/agent";
 import { ToolExecutionResponse } from "../types/tools";
+import { AgentContext } from "./agent-context";
 import { HookManager } from "./hook-manager";
 
 export const DEFAULT_ALLOW_TOOLS = [
@@ -47,12 +47,10 @@ function toFunctionParameters(
 export class ToolManager {
   private tools: Map<string, InnerRegisteredTool>;
   private readonly hookManager: HookManager;
-  private readonly streamHandler: StreamHandler;
 
-  constructor(hookManager: HookManager, streamHandler: StreamHandler) {
+  constructor(hookManager: HookManager) {
     this.tools = new Map();
     this.hookManager = hookManager;
-    this.streamHandler = streamHandler;
     this.registerHooks("PreToolUse", async (context) => {
       const permissionMessage = checkCommandPermissionRules(context.toolName, context.parsedArgs);
       if (!permissionMessage) {
@@ -77,9 +75,7 @@ export class ToolManager {
   }
 
   public async executeToolHandler(
-    requestId: string,
-    userId: string,
-    modelProvider: PreToolUseHookContext["modelProvider"],
+    context: AgentContext,
     toolCallId: string,
     toolName: string,
     rawArgs: string | undefined,
@@ -98,12 +94,12 @@ export class ToolManager {
 
     try {
       const parsedArgs = rawArgs ? JSON.parse(rawArgs) : {};
-      const eventHandler = this.streamHandler.getEventHandler();
+      const eventHandler = context.eventHandler;
 
       const preToolUseContext: PreToolUseHookContext = {
-        requestId,
-        userId,
-        modelProvider,
+        requestId: context.requestId,
+        userId: context.userId,
+        modelProvider: context.modelProvider,
         toolCallId,
         toolName,
         rawArgs,
@@ -147,9 +143,9 @@ export class ToolManager {
         .printLog();
       await eventHandler?.onToolUseDone?.(toolName, toolCallId, true, successResult.output);
       const postToolUseContext: PostToolUseHookContext = {
-        requestId,
-        userId,
-        modelProvider,
+        requestId: context.requestId,
+        userId: context.userId,
+        modelProvider: context.modelProvider,
         toolCallId,
         toolName,
         rawArgs,
@@ -173,7 +169,7 @@ export class ToolManager {
           ...errorResult,
         })
         .printLog();
-      const eventHandler = this.streamHandler.getEventHandler();
+      const eventHandler = context.eventHandler;
       await eventHandler?.onToolUseDone?.(toolName, toolCallId, false, { error: output });
       return Promise.resolve(errorResult);
     }

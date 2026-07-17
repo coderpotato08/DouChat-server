@@ -1,6 +1,5 @@
 import { Context } from "koa";
 import type OpenAI from "openai";
-import { v4 as uuidv4 } from "uuid";
 import { getMainAgent, initMainAgent } from "../../agent/engine/main-agent";
 import { IdGenerator } from "../../agent/memory/id-generator";
 import { bashBlacklistStore, permissionStore } from "../../agent/permission";
@@ -110,7 +109,6 @@ type MockToolCall = {
 };
 
 const runMockAgentMessageStream = async (sseSession: SSESession): Promise<void> => {
-
   const loadMockMessages = (): OpenAI.Chat.Completions.ChatCompletionMessageParam[] => {
     const mockPath = require("node:path").join(process.cwd(), "mock", "mock-messages.ts");
     const mod = require(mockPath) as {
@@ -161,11 +159,7 @@ const runMockAgentMessageStream = async (sseSession: SSESession): Promise<void> 
   };
 
   // 输出工具调用结束和结果（对齐 onToolUseDone）
-  const streamToolUseDone = async (
-    toolName: string,
-    toolUseId: string,
-    resultContent: string,
-  ) => {
+  const streamToolUseDone = async (toolName: string, toolUseId: string, resultContent: string) => {
     if (sseSession.isClosed()) return;
     const data = JSON.parse(resultContent);
     writeSSEData(
@@ -222,11 +216,7 @@ const runMockAgentMessageStream = async (sseSession: SSESession): Promise<void> 
           if (pendingToolCall && msg.tool_call_id === pendingToolCall.id) {
             const textContent = getTextContent(msg.content);
             if (textContent) {
-              await streamToolUseDone(
-                pendingToolCall.function.name,
-                msg.tool_call_id,
-                textContent,
-              );
+              await streamToolUseDone(pendingToolCall.function.name, msg.tool_call_id, textContent);
             }
             pendingToolCall = null;
           }
@@ -310,25 +300,20 @@ export const getSession = async (ctx: Context) => {
   // 2. 查询会话消息：DB 层排除 system（系统提示词）和 tool（工具结果）
   const rawMessages = await AiSessionMessageModel.find({
     sessionId: body.sessionId,
-    role: { $nin: ["system", "tool"] },
+    role: { $nin: ["system"] },
   })
     .sort({ sortIndex: 1 })
     .lean();
 
   // 3. 结果过滤：剔除不应展示给用户的内部过程消息，避免前端出现空气泡
-  //    - 纯 tool_calls 的 assistant（无展示文本）
   //    - 最大轮次中止时注入的 user 提示（FINAL_MESSAGE）
   //    - 剥离 <think> 后内容为空的 assistant（纯思考过程）
   const messages = rawMessages
     .map((msg) => ({ ...msg, content: stripThinkingTags(msg.content) }))
     .filter((msg) => {
-      if (
-        msg.role === "assistant" &&
-        Array.isArray(msg.tool_calls) &&
-        msg.tool_calls.length > 0 &&
-        !msg.content
-      ) {
-        return false;
+      const isToolCall = msg.tool_call_id || (msg.tool_calls || []).length > 0;
+      if (isToolCall) {
+        return true;
       }
       if (msg.role === "user" && msg.content === FINAL_MESSAGE) {
         return false;
@@ -338,7 +323,7 @@ export const getSession = async (ctx: Context) => {
       }
       return true;
     });
-
+  
   ctx.body = createRes(
     $SuccessCode,
     {

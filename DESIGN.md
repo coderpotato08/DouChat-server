@@ -98,6 +98,7 @@ src/
     │
     ├── engine/
     │   ├── main-agent.ts             #   MainAgent — 主 Agent 编排（agent loop + 流式响应）
+    │   ├── agent-context.ts          #   AgentContext — 请求级不可变上下文
     │   ├── llm-service.ts            #   LlmService — LLM 客户端管理（DOUBAO/QWEN 双 Provider）
     │   ├── tool-manager.ts           #   ToolManager — 工具注册/配置/执行（含 PreToolUse Hook）
     │   ├── hook-manager.ts           #   HookManager — 事件 Hook 注册与触发
@@ -204,6 +205,12 @@ HTTP POST /ai/agent/completion (SSE)
 - `agent/` 下 mainAgent 架构的各模块尽量采用单例模式（`initXxx()` / `getXxx()`）
 - 若子模块依赖同级模块，**不**通过单例 getter 间接获取，而是直接透传实例
 - 避免模块间通过单例形成隐式耦合，保持依赖关系显式可追踪
+
+### ADR-8: 请求级 AgentContext
+- 每次 Agent 请求创建一个不可变 `AgentContext`，集中维护 `requestId`、`sessionId`、`userId`、`modelProvider`、`eventHandler` 和可选 `abortSignal`
+- `MainAgent`、`ToolManager` 及消息持久化辅助方法沿调用链显式传递 context，避免重复传递独立参数
+- `AgentContext` 不保存在 `MainAgent` 单例字段中，防止并发请求之间覆盖请求状态和 SSE 事件处理器
+- 类型和创建函数集中定义在 `src/agent/engine/agent-context.ts`
 
 ---
 
