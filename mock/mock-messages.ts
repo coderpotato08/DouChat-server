@@ -8,7 +8,7 @@ import type OpenAI from "openai";
  * - tool 消息 content 为序列化后的结果字符串，带 tool_call_id 与对应 assistant tool_call 关联
  *
  * 场景：读取 data/temp.txt 短文 -> 分析优缺点与改进 -> 写入改进版 -> 列目录
- * 覆盖工具：safe_path / run_read / todo / run_write / run_bash
+ * 覆盖工具：safe_path / run_read / task_create / task_update / run_write / run_bash
  * 共 3 轮、19 条消息、6 个工具结果（大小不一，便于 L2 占位 / L3 落盘测试）。
  */
 
@@ -17,10 +17,10 @@ const SANDBOX_ROOT =
 const TEMP_FILE = `${SANDBOX_ROOT}/data/temp.txt`;
 const IMPROVED_FILE = `${SANDBOX_ROOT}/data/temp_improved.txt`;
 
-const SYSTEM_PROMPT = `You are a coding agent at ${SANDBOX_ROOT}. Use the todo tool to plan multi-step tasks. Mark in_progress before starting, completed when done. Prefer tools over prose.
+const SYSTEM_PROMPT = `You are a coding agent at ${SANDBOX_ROOT}. Use task_create, task_get, task_list, and task_update to plan and track multi-step work. Mark a task in_progress before starting and completed when done. Respect blockedBy dependencies. Prefer tools over prose.
 意图识别路由结果:
 {"complexityLevel":"complex","confidence":0.85,"routeTarget":"agent_loop","judgeFactors":["多步分析","文件读写","跨文件排查"],"tokenCost":0.8,"needThinking":true}
-可以进入完整 agent loop，按需使用 todo 和其他工具完成任务。`;
+可以进入完整 agent loop，按需使用 task_create、task_get、task_list、task_update 和其他工具完成任务。`;
 
 const ESSAY_CONTENT = `# 我想下班
 
@@ -109,16 +109,13 @@ export const mockMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] 
     content: "",
     tool_calls: [
       {
-        id: "call_todo_1",
+        id: "call_task_create_1",
         type: "function",
         function: {
-          name: "todo",
+          name: "task_create",
           arguments: JSON.stringify({
-            items: [
-              { content: "分析短文《我想下班》的优点", status: "in_progress", activeForm: "分析优点" },
-              { content: "分析短文《我想下班》的缺点", status: "pending", activeForm: "" },
-              { content: "给出结构化改进建议", status: "pending", activeForm: "" },
-            ],
+            subject: "分析并改进短文",
+            description: "分析《我想下班》的优缺点并给出结构化改进建议。",
           }),
         },
       },
@@ -126,13 +123,10 @@ export const mockMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] 
   },
   {
     role: "tool",
-    tool_call_id: "call_todo_1",
+    tool_call_id: "call_task_create_1",
     content: JSON.stringify({
-      items: [
-        { content: "分析短文《我想下班》的优点", status: "in_progress", activeForm: "分析优点" },
-        { content: "分析短文《我想下班》的缺点", status: "pending", activeForm: "" },
-        { content: "给出结构化改进建议", status: "pending", activeForm: "" },
-      ],
+      taskId: "task_0190e8ec-4b31-7b0a-8a6e-2d93b8424d90",
+      subject: "分析并改进短文",
     }),
   },
 
@@ -164,16 +158,13 @@ export const mockMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] 
     content: "",
     tool_calls: [
       {
-        id: "call_todo_2",
+        id: "call_task_update_1",
         type: "function",
         function: {
-          name: "todo",
+          name: "task_update",
           arguments: JSON.stringify({
-            items: [
-              { content: "分析短文《我想下班》的优点", status: "completed", activeForm: "" },
-              { content: "分析短文《我想下班》的缺点", status: "in_progress", activeForm: "" },
-              { content: "给出结构化改进建议", status: "pending", activeForm: "" },
-            ],
+            taskId: "task_0190e8ec-4b31-7b0a-8a6e-2d93b8424d90",
+            status: "completed",
           }),
         },
       },
@@ -181,13 +172,19 @@ export const mockMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] 
   },
   {
     role: "tool",
-    tool_call_id: "call_todo_2",
+    tool_call_id: "call_task_update_1",
     content: JSON.stringify({
-      items: [
-        { content: "分析短文《我想下班》的优点", status: "completed", activeForm: "" },
-        { content: "分析短文《我想下班》的缺点", status: "completed", activeForm: "" },
-        { content: "给出结构化改进建议", status: "completed", activeForm: "" },
-      ],
+      task: {
+        id: "task_0190e8ec-4b31-7b0a-8a6e-2d93b8424d90",
+        subject: "分析并改进短文",
+        description: "分析《我想下班》的优缺点并给出结构化改进建议。",
+        status: "completed",
+        owner: null,
+        blocks: [],
+        blockedBy: [],
+        createdAt: "2026-07-19T10:00:00.000Z",
+        updatedAt: "2026-07-19T10:01:00.000Z",
+      },
     }),
   },
 

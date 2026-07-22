@@ -5,7 +5,7 @@
 | 类型 | 风格 | 示例 |
 |------|------|------|
 | 文件 | kebab-case | `main-agent.ts`, `llm-service.ts` |
-| 目录 | kebab-case 或 camelCase | `sub-agent/`, `TodoManager/` |
+| 目录 | kebab-case 或 camelCase | `sub-agent/`, `TaskTool/`, `TodoManagerTool/` |
 | 类 | PascalCase | `MainAgent`, `ToolManager`, `HookManager` |
 | 函数/变量 | camelCase | `buildSystemPrompt`, `getClientBundle` |
 | 常量 | UPPER_SNAKE | `MAX_TODO_ITEMS`, `DEFAULT_MAX_CONTEXT_MESSAGES` |

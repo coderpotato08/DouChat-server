@@ -51,7 +51,7 @@ export const COMPLEXITY_ROUTE_CONFIG_MAP: Record<
     temperature: 0.3,
   },
   agent_loop: {
-    extraPrompt: "可以进入完整 agent loop，按需使用 todo 和其他工具完成任务。",
+    extraPrompt: "可以进入完整 agent loop，按需使用 task_create、task_get、task_list、task_update 和其他工具完成任务。",
     maxLoopLimit: 20,
     temperature: 0.4,
   },

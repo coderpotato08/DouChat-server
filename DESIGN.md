@@ -112,7 +112,11 @@ src/
     │
     ├── tools/
     │   ├── baseTools.ts              #   基础工具注册（safe_path, run_bash, run_read, run_write）
-    │   ├── TodoManager/index.ts      #   TodoManager + todo 工具注册
+    │   ├── TaskTool/                 #   会话级持久化任务工具（create/get/list/update）
+    │   │   ├── index.ts              #   registerTaskTools() 注册入口
+    │   │   ├── task-manager.ts       #   任务、依赖与状态约束管理
+    │   │   └── task-store.ts         #   data/.douchat/task 磁盘持久化
+    │   └── TodoManagerTool/index.ts  #   TodoManager 源码保留，当前不注册
     │
     ├── permission/
     │   ├── index.ts                  #   权限策略入口（toolPermissionPolicies, checkCommandPermissionRules）
@@ -158,7 +162,7 @@ HTTP POST /ai/agent/completion (SSE)
               → hookManager.triggerHooks("PreToolUse", …)   [Hook: 工具前置]
                 → checkCommandPermissionRules(…)            [权限检查]
                 → askUserForPermission(…)                   [人工审批]
-              → tool.execute(parsedArgs)                    [工具实际执行]
+              → tool.execute(parsedArgs, context)             [工具实际执行，显式传入 AgentContext]
               → hookManager.triggerHooks("PostToolUse", …)  [Hook: 工具后置]
         → 流式输出最终回复
         → hookManager.triggerHooks("Stop", …)               [Hook: 停止]
@@ -212,6 +216,13 @@ HTTP POST /ai/agent/completion (SSE)
 - `AgentContext` 不保存在 `MainAgent` 单例字段中，防止并发请求之间覆盖请求状态和 SSE 事件处理器
 - 类型和创建函数集中定义在 `src/agent/engine/agent-context.ts`
 
+### ADR-9: 会话级磁盘持久化 Task 系统
+- `task_create`、`task_get`、`task_list`、`task_update` 通过 `registerTaskTools()` 注册；TodoManager 源码保留但停止注册
+- 每个任务保存到 `data/.douchat/task/{sessionId}/task_<uuidv7>.json`，任务工具从显式传递的 `AgentContext.sessionId` 获得会话边界
+- `blockedBy` 与反向 `blocks` 自动同步，禁止缺失依赖、自依赖和依赖环
+- 任务只有全部前置任务完成后才能进入 `in_progress` 或 `completed`；已推进下游任务依赖的前置任务不得回退为未完成
+- 单文件以临时文件 + rename 原子替换；多任务依赖更新采用快照批量写入和尽力回滚。跨请求竞争锁留待后续扩展
+
 ---
 
 ## 5. 不可破坏的约束
@@ -249,7 +260,8 @@ HTTP POST /ai/agent/completion (SSE)
 | Agent Loop 编排 | ✅ | agent/engine/main-agent |
 | LLM 双 Provider (DOUBAO/QWEN) | ✅ | agent/engine/llm-service |
 | 4 个基础工具 (safe_path/run_bash/run_read/run_write) | ✅ | agent/tools/baseTools |
-| TodoManager 工具 | ✅ | agent/tools/TodoManager |
+| Task 任务系统 (create/get/list/update，磁盘持久化) | ✅ | agent/tools/TaskTool |
+| TodoManager 源码（已停止注册） | ✅ | agent/tools/TodoManagerTool |
 | Hook 事件系统 | ✅ | agent/engine/hook-manager |
 | 复杂度分析路由 | ✅ | agent/sub-agent/complexity-analyze-agent |
 | 三层权限策略 (sandbox+preflight+confirm) | ✅ | agent/permission/index |

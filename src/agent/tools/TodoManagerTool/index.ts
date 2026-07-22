@@ -1,7 +1,7 @@
 import z from "zod";
 import { RegisteredTool } from "../../engine/tool-manager";
 
-export type TodoStatus = "pending" | "in_progress" | "completed";
+export type TaskStatus = "pending" | "in_progress" | "completed";
 
 export type TodoItemInput = {
   content: unknown;
@@ -12,7 +12,7 @@ export type TodoItemInput = {
 
 export type TodoItem = {
   content: string;
-  status: TodoStatus;
+  status: TaskStatus;
   activeForm: string;
 };
 
@@ -70,7 +70,7 @@ export class TodoManager {
       if (!content) {
         throw new Error(`Item ${index}: content required`);
       }
-      if (!this.isTodoStatus(status)) {
+      if (!this.isTaskStatus(status)) {
         throw new Error(`Item ${index}: invalid status '${status}'`);
       }
       if (status === "in_progress") {
@@ -87,7 +87,7 @@ export class TodoManager {
     return normalized;
   }
 
-  private isTodoStatus(status: string): status is TodoStatus {
+  private isTaskStatus(status: string): status is TaskStatus {
     return status === "pending" || status === "in_progress" || status === "completed";
   }
 }

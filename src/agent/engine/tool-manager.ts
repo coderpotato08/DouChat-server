@@ -17,11 +17,10 @@ export const DEFAULT_ALLOW_TOOLS = [
   "run_bash",
   "run_read",
   "run_write",
-  "todo",
-  // "task_create",
-  // "task_get",
-  // "task_list",
-  // "task_update",
+  "task_create",
+  "task_get",
+  "task_list",
+  "task_update",
 ];
 
 type RegisteredToolConfig = {
@@ -30,11 +29,11 @@ type RegisteredToolConfig = {
   parameters: Record<string, z.ZodType>;
 };
 export type RegisteredTool = RegisteredToolConfig & {
-  execute: (args: Record<string, any>) => Promise<any>;
+  execute: (args: Record<string, any>, context: AgentContext) => Promise<any>;
 };
 
 type InnerRegisteredTool = RegisteredToolConfig & {
-  execute: (args: Record<string, any>) => Promise<ToolExecutionResponse>;
+  execute: (args: Record<string, any>, context: AgentContext) => Promise<any>;
 };
 function toFunctionParameters(
   parameters: Record<string, z.ZodType>,
@@ -93,7 +92,8 @@ export class ToolManager {
     }
 
     try {
-      const parsedArgs = rawArgs ? JSON.parse(rawArgs) : {};
+      const rawParsedArgs: unknown = rawArgs ? JSON.parse(rawArgs) : {};
+      const parsedArgs = z.object(tool.parameters as z.ZodRawShape).parse(rawParsedArgs);
       const eventHandler = context.eventHandler;
 
       const preToolUseContext: PreToolUseHookContext = {
@@ -127,7 +127,7 @@ export class ToolManager {
 
       await eventHandler?.onToolUseStart?.(toolName, toolCallId, parsedArgs);
       SystemLogger.agent().toolStart({ toolName, toolCallId, input: rawArgs }).printLog();
-      const toolResult = await tool.execute(parsedArgs);
+      const toolResult = await tool.execute(parsedArgs, context);
       const executionTime = Date.now() - startTime;
       const successResult = {
         toolName,

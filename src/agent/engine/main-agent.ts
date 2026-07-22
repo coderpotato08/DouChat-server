@@ -9,7 +9,7 @@ import {
   ComplexityAnalyzeResult,
 } from "../sub-agent/complexity-analyze-agent";
 import { registerBaseTools } from "../tools/baseTools";
-import { registerTodoTools } from "../tools/TodoManagerTool/index";
+import { registerTaskTools } from "../tools/TaskTool";
 import {
   AgentHookCallback,
   AgentHookEventName,
@@ -63,7 +63,7 @@ export class MainAgent {
     this.conversationStore = new ConversationStore();
     // 初始化工具
     try {
-      this.toolManager.registerTools([...registerBaseTools(), ...registerTodoTools()]);
+      this.toolManager.registerTools([...registerBaseTools(), ...registerTaskTools()]);
     } catch (error) {
       console.error("❗️工具初始化失败:", error);
     }

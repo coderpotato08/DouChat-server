@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 /**
  * ID 类型：区分不同业务场景的唯一标识生成
  */
-export type IdType = "session" | "request" | "message" | "compress_snapshot" | "tool_call";
+export type IdType = "session" | "request" | "message" | "compress_snapshot" | "tool_call" | "task";
 
 /**
  * IdGenerator — 全局有序 ID 生成器
